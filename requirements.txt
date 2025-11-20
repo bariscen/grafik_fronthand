@@ -1,0 +1,11 @@
+pandas
+streamlit
+numpy
+requests
+matplotlib
+seaborn
+fastapi         # API framework
+pytz            # time zone management
+uvicorn         # web server
+httpx           # HTTP client
+requests
