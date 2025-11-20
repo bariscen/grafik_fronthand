@@ -114,7 +114,7 @@ with st.container():
 import streamlit as st
 import requests
 
-BACKEND_URL = "http://localhost:8001"  # backend burada çalışıyor varsayalım
+BACKEND_URL = "https://sesa-grafik-api-1003931228830.europe-southwest1.run.app"  # backend burada çalışıyor varsayalım
 
 st.title("Bobin için Bıçak Çizimi Bilgileri")
 
