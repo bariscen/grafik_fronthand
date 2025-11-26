@@ -134,11 +134,11 @@ st.markdown("---")
 st.subheader("Gelişmiş Ayarlar (opsiyonel)")
 
 with st.expander("Gelişmiş ayarları aç"):
-    margin = st.number_input("Margin (mm)", min_value=0.0, value=27.0, step=1.0)
-    yuvarlama = st.selectbox("Yuvarlama Var mı", ["True", "False"])
+    margin = st.number_input("Margin (mm)", min_value=0.0, value=25.0, step=1.0)
+    yuvarlama = st.selectbox("Yuvarlama Var mı", ["False", "True"])
 
     valf = st.number_input("Valf Var mı?", min_value=0.0, value=27.0, step=1.0)
-    yuvarlama = st.selectbox("Kalıp Bıçağı", ["True", "False"])
+    yuvarlama = st.selectbox("Kalıp Bıçağı", ["False", "True"])
 
 
 def to_none_if_zero(v: float):
