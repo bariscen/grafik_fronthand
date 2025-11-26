@@ -99,7 +99,7 @@ with col1:
 with col2:
     if st.button("Doypack"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/stats_ilk50.py")
+            st.switch_page("pages/doypack.py")
 
 
 
