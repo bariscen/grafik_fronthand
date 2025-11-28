@@ -115,7 +115,7 @@ dosya_adi_input = st.text_input(
 boy_mm = st.number_input("Boy (mm)", min_value=0.0, value=170.0, step=1.0)
 
 gusset_options = {
-    "D404 16x22": "D404",
+    "D404 164x50": "D404",
     "D500 18x25": "D500",
     "D320 14x20": "D320",
     }
