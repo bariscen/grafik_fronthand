@@ -220,7 +220,7 @@ if st.button("Bıçağı Oluştur"):
 
         # Aç-kapa
         "ac_kapa": ac_kapa == "True",
-        "ac_kapa_yer": ac_kapa_yer if ac_kapa == "True" else {},
+        "ac_kapa_yer": ac_kapa_yer,
 
         # Zipper
         "zipper": zipper == "True",
