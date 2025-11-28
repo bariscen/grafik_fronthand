@@ -184,8 +184,6 @@ with st.expander("Gelişmiş ayarları aç"):
         eurohole_options,
         index=0,
         )
-        if eurohole_name.strip() == "":
-            st.warning("⚠️ Eurohole aktif → Eurohole dosya adı zorunludur!")
 
         eurohole_mesafe = st.number_input(
             "Eurohole Mesafesi (mm)",
