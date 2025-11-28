@@ -178,8 +178,11 @@ with st.expander("Gelişmiş ayarları aç"):
     eurohole_mesafe = 0.0
 
     if eurohole == "True":
-        eu_na = st.selectbox("Kullanmak istedğin Eurohole", ["EUROHOLE 1"])
-        eurohole_name = eu_na[0]
+        eurohole_name = st.text_input(
+            "Eurohole Dosya Adı (PDF adı)",
+            value="",
+            placeholder="örneğin euro1.pdf",
+        )
         if eurohole_name.strip() == "":
             st.warning("⚠️ Eurohole aktif → Eurohole dosya adı zorunludur!")
 
