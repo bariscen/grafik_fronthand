@@ -388,3 +388,35 @@ if st.button("Bıçağı Oluştur"):
     except Exception as e:
         st.error("PDF oluştururken bir hata oluştu.")
         st.exception(e)
+
+
+
+    try:
+        res = requests.post(f"{BACKEND_URL}/gusset-die-line", json=payload)
+
+        if res.status_code == 200:
+            pdf_bytes = res.content
+
+            # Header'dan gerçek dosya adını çekelim
+            content_disposition = res.headers.get("content-disposition", "")
+            filename = f"{dosya_adi_input}.pdf"
+
+            if "filename=" in content_disposition:
+                filename = content_disposition.split("filename=")[1].strip('"')
+
+            st.success("PDF başarıyla oluşturuldu ✅")
+
+            st.download_button(
+                label=f"📥 {filename} dosyasını indir",
+                data=pdf_bytes,
+                file_name=filename,
+                mime="application/pdf",
+            )
+
+        else:
+            st.error(f"Sunucudan hata dönüyor: {res.status_code}")
+            st.text(res.text)
+
+    except Exception as e:
+        st.error("PDF oluştururken bir hata oluştu.")
+        st.exception(e)
