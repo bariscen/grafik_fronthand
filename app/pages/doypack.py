@@ -16,7 +16,7 @@ st.markdown(
     """
 <style>
     [data-testid="collapsedControl"] {
-        display: none;
+        display: none
     }
 </style>
 """,
@@ -56,10 +56,8 @@ st.markdown("""
 # ------------------------------------------------
 #  LOGO
 # ------------------------------------------------
-# Projenin kök dizinini (sesa_front) Python path'e ekle
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-# Bu dosyanın bulunduğu dizin (app/pages/...)
 current_dir = Path(__file__).parent.parent
 image_path_for_logo = current_dir.parent / "row-data" / "sesa-logo-80-new.png"
 
@@ -154,9 +152,9 @@ with st.expander("Gelişmiş ayarları aç"):
 
     if zipper == "True":
         zipper_name = st.text_input(
-            "Zipper Dosya Adı (PD",
+            "Zipper Dosya Adı (PDF adı, uzantısız)",
             value="",
-            placeholder="örneğin zipper1.pdf",
+            placeholder="örneğin 5A",
         )
         if zipper_name.strip() == "":
             st.warning("⚠️ Zipper aktif → Zipper dosya adı zorunludur!")
@@ -178,11 +176,16 @@ with st.expander("Gelişmiş ayarları aç"):
     eurohole_mesafe = 0.0
 
     if eurohole == "True":
-        eurohole_options = ['Eurohole 1_21cm','Eurohole 2_33cm', 'Eurohole 3_cift_21cm']
-        eurohole_name == st.selectbox(
-        "Eurohole Seç (PDF adı, uzantısız)",
-        eurohole_options,
-        index=0,
+        eurohole_options = [
+            "Eurohole 1_21cm",
+            "Eurohole 2_33cm",
+            "Eurohole 3_cift_21cm",
+        ]
+
+        eurohole_name = st.selectbox(
+            "Eurohole Seç (PDF adı, uzantısız)",
+            eurohole_options,
+            index=0,
         )
 
         eurohole_mesafe = st.number_input(
@@ -202,8 +205,9 @@ if st.button("Bıçağı Oluştur"):
         st.error("❌ Zipper aktif fakat 'Zipper Dosya Adı' girilmemiş!")
         st.stop()
 
-    if eurohole == "True" and (not eurohole_name or eurohole_name.strip() == ""):
-        st.error("❌ Eurohole aktif fakat 'Eurohole Dosya Adı' girilmemiş!")
+    # selectbox kullandığımız için normalde boş olmaz ama yine de güvenlik:
+    if eurohole == "True" and not eurohole_name:
+        st.error("❌ Eurohole aktif fakat 'Eurohole Dosyası' seçilmemiş!")
         st.stop()
 
     payload = {
@@ -232,7 +236,6 @@ if st.button("Bıçağı Oluştur"):
         "eurohole_name": eurohole_name,
         "eurohole_mesafe": eurohole_mesafe,
     }
-
 
     try:
         res = requests.post(f"{BACKEND_URL}/gusset-die-line", json=payload)
