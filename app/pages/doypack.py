@@ -153,11 +153,10 @@ with st.expander("Gelişmiş ayarları aç"):
     sag_zip = "False"
 
     if zipper == "True":
-        zipper_options = ['Eurohole 1_21cm','Eurohole 2_33cm', 'Eurohole 3_cift_21cm']
-        zipper_name == st.selectbox(
-        "Zipper Seç (PDF adı, uzantısız)",
-        zipper_options,
-        index=0,
+        zipper_name = st.text_input(
+            "Zipper Dosya Adı (PD",
+            value="",
+            placeholder="örneğin zipper1.pdf",
         )
         if zipper_name.strip() == "":
             st.warning("⚠️ Zipper aktif → Zipper dosya adı zorunludur!")
@@ -179,10 +178,11 @@ with st.expander("Gelişmiş ayarları aç"):
     eurohole_mesafe = 0.0
 
     if eurohole == "True":
-        eurohole_name = st.text_input(
-            "Eurohole Dosya Adı (PDF adı)",
-            value="",
-            placeholder="örneğin euro1.pdf",
+        eurohole_options = ['Eurohole 1_21cm','Eurohole 2_33cm', 'Eurohole 3_cift_21cm']
+        eurohole_name == st.selectbox(
+        "Eurohole Seç (PDF adı, uzantısız)",
+        eurohole_options,
+        index=0,
         )
         if eurohole_name.strip() == "":
             st.warning("⚠️ Eurohole aktif → Eurohole dosya adı zorunludur!")
