@@ -153,10 +153,11 @@ with st.expander("Gelişmiş ayarları aç"):
     sag_zip = "False"
 
     if zipper == "True":
-        zipper_name = st.text_input(
-            "Zipper Dosya Adı (PDF adı)",
-            value="",
-            placeholder="örneğin zipper1.pdf",
+        zipper_options = ['Eurohole 1_21cm','Eurohole 2_33cm', 'Eurohole 3_cift_21cm']
+        zipper_name == st.selectbox(
+        "Zipper Seç (PDF adı, uzantısız)",
+        zipper_options,
+        index=0,
         )
         if zipper_name.strip() == "":
             st.warning("⚠️ Zipper aktif → Zipper dosya adı zorunludur!")
