@@ -224,14 +224,14 @@ if st.button("Bıçağı Oluştur"):
 
         # Zipper
         "zipper": zipper == "True",
-        **({"zipper_name": zipper_name} if zipper == "True" else {}),
-        **({"zip_mesafe": zip_mesafe} if zipper == "True" else {}),
-        **({"sag_zip": sag_zip == "True"} if zipper == "True" else {}),
+        "zipper_name": zipper_name,
+        "zip_mesafe": zip_mesafe,
+        "sag_zip": sag_zip == "True",
 
         # Eurohole
         "eurohole": eurohole == "True",
-        **({"eurohole_name": eurohole_name} if eurohole == "True" else {}),
-        **({"eurohole_mesafe": eurohole_mesafe} if eurohole == "True" else {}),
+        "eurohole_name": eurohole_name,
+        "eurohole_mesafe": eurohole_mesafe,
     }
 
 
