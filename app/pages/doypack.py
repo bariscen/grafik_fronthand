@@ -180,6 +180,16 @@ with st.expander("Gelişmiş ayarları aç"):
             "Eurohole 1_21cm",
             "Eurohole 2_33cm",
             "Eurohole 3_cift_21cm",
+            "Eurohole 4_cift_31cm",
+            "Eurohole 5_45cm",
+            "Eurohole 6_27cm",
+            "Eurohole 7_30cm",
+            "Eurohole 8_yuv_22cm",
+            "Eurohole Bıyık_38cm",
+            "Delik Tip 1_cap5",
+            "Delik Tip 2_cap8",
+            "Delik Tip 3_cap6",
+            "Delik Tipi 4_cap10cm"
         ]
 
         eurohole_name = st.selectbox(
