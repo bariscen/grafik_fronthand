@@ -143,33 +143,66 @@ with st.expander("Gelişmiş ayarları aç"):
     # ⭐ AÇ-KAPA AYARLARI
     # -----------------------------------------
     ac_kapa = st.selectbox("Aç-Kapa Var mı", ["False", "True"])
-    ac_kapa_yer = st.number_input("Aç-Kapa Yeri (mm)", min_value=0.0, value=20.0, step=1.0)
+
+    # default değer (ac_kapa False ise 0 gitsin)
+    ac_kapa_yer = 0.0
+    if ac_kapa == "True":
+        ac_kapa_yer = st.number_input(
+            "Aç-Kapa Yeri (mm)",
+            min_value=0.0,
+            value=20.0,
+            step=1.0,
+        )
 
     # -----------------------------------------
     # ⭐ ZIPPER AYARLARI
     # -----------------------------------------
     zipper = st.selectbox("Zipper Var mı", ["False", "True"])
+
     zipper_name = None
+    zip_mesafe = 0.0
+    sag_zip = "False"
+
     if zipper == "True":
-        zipper_name = st.text_input("Zipper Dosya Adı (PDF adı)", value="", placeholder="örneğin zipper1.pdf")
+        zipper_name = st.text_input(
+            "Zipper Dosya Adı (PDF adı)",
+            value="",
+            placeholder="örneğin zipper1.pdf",
+        )
         if zipper_name.strip() == "":
             st.warning("⚠️ Zipper aktif → Zipper dosya adı zorunludur!")
 
-    zip_mesafe = st.number_input("Zipper Mesafesi (mm)", min_value=0.0, value=30.0, step=1.0)
-    sag_zip = st.selectbox("Sağda da Zipper Var mı", ["False", "True"])
+        zip_mesafe = st.number_input(
+            "Zipper Mesafesi (mm)",
+            min_value=0.0,
+            value=30.0,
+            step=1.0,
+        )
+        sag_zip = st.selectbox("Sağda da Zipper Var mı", ["False", "True"])
 
     # -----------------------------------------
     # ⭐ EUROHOLE AYARLARI
     # -----------------------------------------
     eurohole = st.selectbox("Eurohole Var mı", ["False", "True"])
+
     eurohole_name = None
+    eurohole_mesafe = 0.0
+
     if eurohole == "True":
-        eurohole_name = st.text_input("Eurohole Dosya Adı (PDF adı)", value="", placeholder="örneğin euro1.pdf")
+        eurohole_name = st.text_input(
+            "Eurohole Dosya Adı (PDF adı)",
+            value="",
+            placeholder="örneğin euro1.pdf",
+        )
         if eurohole_name.strip() == "":
             st.warning("⚠️ Eurohole aktif → Eurohole dosya adı zorunludur!")
 
-    eurohole_mesafe = st.number_input("Eurohole Mesafesi (mm)", min_value=0.0, value=10.0, step=1.0)
-
+        eurohole_mesafe = st.number_input(
+            "Eurohole Mesafesi (mm)",
+            min_value=0.0,
+            value=10.0,
+            step=1.0,
+        )
 if st.button("Bıçağı Oluştur"):
 
     # Zorunluluk kontrolleri
@@ -192,15 +225,17 @@ if st.button("Bıçağı Oluştur"):
         "gusset_base_name": gusset_base_name,
         "dosya_adi": dosya_adi_input,
 
-        # ⭐ Yeni gelişmiş ayarlar
+        # ⭐ Aç-kapa
         "ac_kapa": ac_kapa == "True",
         "ac_kapa_yer": ac_kapa_yer,
 
+        # ⭐ Zipper
         "zipper": zipper == "True",
         "zipper_name": zipper_name,
         "zip_mesafe": zip_mesafe,
         "sag_zip": sag_zip == "True",
 
+        # ⭐ Eurohole
         "eurohole": eurohole == "True",
         "eurohole_name": eurohole_name,
         "eurohole_mesafe": eurohole_mesafe,
