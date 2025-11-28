@@ -114,7 +114,7 @@ with st.container():
 import streamlit as st
 import requests
 
-BACKEND_URL = "https://sesa-grafik-api-1003931228830.europe-southwest1.run.app"  # backend burada çalışıyor varsayalım
+BACKEND_URL = "https://sesa-grafik-api-1003931228830.europe-southwest1.run.app"
 
 st.title("Doypack için Bıçak Çizimi Bilgileri")
 
@@ -128,20 +128,47 @@ boy_mm = st.number_input("Boy (mm)", min_value=0.0, value=170.0, step=1.0)
 gusset_base_name = st.selectbox("Kalıp Bıçağı", ["D404"])
 kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
 middle_mm = (2*kb)*-1
-dikis_kalinlik = st.number_input("Dikiş Kalınlığı", min_value=0.0, value=5.0, step=1.0)
+dikis_kalinlik = st.number_input("Dikiş Kalınlığı (mm)", min_value=0.0, value=5.0, step=1.0)
 
 st.markdown("---")
 st.subheader("Gelişmiş Ayarlar (opsiyonel)")
 
 with st.expander("Gelişmiş ayarları aç"):
+
     margin = st.number_input("Margin (mm)", min_value=0.0, value=25.0, step=1.0)
     yuvarlama = st.selectbox("Yuvarlama Var mı", ["False", "True"])
     valf = st.selectbox("Valf Var mı", ["False", "True"])
 
+    # -----------------------------------------
+    # ⭐ AÇ-KAPA AYARLARI
+    # -----------------------------------------
+    ac_kapa = st.selectbox("Aç-Kapa Var mı", ["False", "True"])
+    ac_kapa_yer = st.number_input("Aç-Kapa Yeri (mm)", min_value=0.0, value=20.0, step=1.0)
 
-def to_none_if_zero(v: float):
-    # 0 girilmişse backend için None gönder (demek ki “auto hesapla”)
-    return None if v == 0 else v
+    # -----------------------------------------
+    # ⭐ ZIPPER AYARLARI
+    # -----------------------------------------
+    zipper = st.selectbox("Zipper Var mı", ["False", "True"])
+    zipper_name = None
+    if zipper == "True":
+        zipper_name = st.text_input("Zipper Dosya Adı (PDF adı)", value="", placeholder="örneğin zipper1.pdf")
+        if zipper_name.strip() == "":
+            st.warning("⚠️ Zipper aktif → Zipper dosya adı zorunludur!")
+
+    zip_mesafe = st.number_input("Zipper Mesafesi (mm)", min_value=0.0, value=30.0, step=1.0)
+    sag_zip = st.selectbox("Sağda da Zipper Var mı", ["False", "True"])
+
+    # -----------------------------------------
+    # ⭐ EUROHOLE AYARLARI
+    # -----------------------------------------
+    eurohole = st.selectbox("Eurohole Var mı", ["False", "True"])
+    eurohole_name = None
+    if eurohole == "True":
+        eurohole_name = st.text_input("Eurohole Dosya Adı (PDF adı)", value="", placeholder="örneğin euro1.pdf")
+        if eurohole_name.strip() == "":
+            st.warning("⚠️ Eurohole aktif → Eurohole dosya adı zorunludur!")
+
+    eurohole_mesafe = st.number_input("Eurohole Mesafesi (mm)", min_value=0.0, value=10.0, step=1.0)
 
 
 if st.button("Bıçağı Oluştur"):
@@ -156,34 +183,39 @@ if st.button("Bıçağı Oluştur"):
     "gusset_base_name": gusset_base_name,    # storage içindeki base isim: "D404"
     "dosya_adi": dosya_adi_input             # çıktı dosya adı (opsiyonel)
 }
+if st.button("Bıçağı Oluştur"):
 
+    # Zorunluluk kontrolleri
+    if zipper == "True" and (not zipper_name or zipper_name.strip() == ""):
+        st.error("❌ Zipper aktif fakat 'Zipper Dosya Adı' girilmemiş!")
+        st.stop()
 
-    try:
-        res = requests.post(f"{BACKEND_URL}/gusset-die-line", json=payload)
+    if eurohole == "True" and (not eurohole_name or eurohole_name.strip() == ""):
+        st.error("❌ Eurohole aktif fakat 'Eurohole Dosya Adı' girilmemiş!")
+        st.stop()
 
-        if res.status_code == 200:
-            pdf_bytes = res.content
+    payload = {
+        "boy_mm": boy_mm,
+        "middle_mm": middle_mm,
+        "margin": margin,
+        "sag_yapisma": dikis_kalinlik,
+        "sol_yapisma": dikis_kalinlik,
+        "yuvarlama": yuvarlama == "True",
+        "valf": valf == "True",
+        "gusset_base_name": gusset_base_name,
+        "dosya_adi": dosya_adi_input,
 
-            # Header'dan gerçek dosya adını çekelim
-            content_disposition = res.headers.get("content-disposition", "")
-            filename = f"{dosya_adi_input}.pdf"
+        # ⭐ Yeni gelişmiş ayarlar
+        "ac_kapa": ac_kapa == "True",
+        "ac_kapa_yer": ac_kapa_yer,
 
-            if "filename=" in content_disposition:
-                filename = content_disposition.split("filename=")[1].strip('"')
+        "zipper": zipper == "True",
+        "zipper_name": zipper_name,
+        "zip_mesafe": zip_mesafe,
+        "sag_zip": sag_zip == "True",
 
-            st.success("PDF başarıyla oluşturuldu ✅")
+        "eurohole": eurohole == "True",
+        "eurohole_name": eurohole_name,
+        "eurohole_mesafe": eurohole_mesafe,
+    }
 
-            st.download_button(
-                label=f"📥 {filename} dosyasını indir",
-                data=pdf_bytes,
-                file_name=filename,
-                mime="application/pdf",
-            )
-
-        else:
-            st.error(f"Sunucudan hata dönüyor: {res.status_code}")
-            st.text(res.text)
-
-    except Exception as e:
-        st.error("PDF oluştururken bir hata oluştu.")
-        st.exception(e)
