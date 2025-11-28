@@ -218,22 +218,21 @@ if st.button("Bıçağı Oluştur"):
         "gusset_base_name": gusset_base_name,
         "dosya_adi": dosya_adi_input,
 
-        # Aç-kapa
+        # ⭐ Aç-kapa
         "ac_kapa": ac_kapa == "True",
         "ac_kapa_yer": ac_kapa_yer,
 
-        # Zipper
+        # ⭐ Zipper
         "zipper": zipper == "True",
-        **({"zipper_name": zipper_name} if zipper == "True" else {}),
-        **({"zip_mesafe": zip_mesafe} if zipper == "True" else {}),
-        **({"sag_zip": sag_zip == "True"} if zipper == "True" else {}),
+        "zipper_name": zipper_name,
+        "zip_mesafe": zip_mesafe,
+        "sag_zip": sag_zip == "True",
 
-        # Eurohole
+        # ⭐ Eurohole
         "eurohole": eurohole == "True",
-        **({"eurohole_name": eurohole_name} if eurohole == "True" else {}),
-        **({"eurohole_mesafe": eurohole_mesafe} if eurohole == "True" else {}),
+        "eurohole_name": eurohole_name,
+        "eurohole_mesafe": eurohole_mesafe,
     }
-
 
     try:
         res = requests.post(f"{BACKEND_URL}/gusset-die-line", json=payload)
