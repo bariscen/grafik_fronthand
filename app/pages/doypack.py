@@ -170,19 +170,6 @@ with st.expander("Gelişmiş ayarları aç"):
 
     eurohole_mesafe = st.number_input("Eurohole Mesafesi (mm)", min_value=0.0, value=10.0, step=1.0)
 
-
-if st.button("Bıçağı Oluştur"):
-    payload = {
-    "boy_mm": boy_mm,                        # doypack boyu
-    "middle_mm": middle_mm,                  # iki gusset arası mesafe
-    "margin": margin,                        # üst-alt boşluk (default 25)
-    "sag_yapisma": dikis_kalinlik,              # sağ yapışma
-    "sol_yapisma": dikis_kalinlik,              # sol yapışma
-    "yuvarlama": yuvarlama,                  # rounded corner yes/no
-    "valf": valf,                            # valf var mı
-    "gusset_base_name": gusset_base_name,    # storage içindeki base isim: "D404"
-    "dosya_adi": dosya_adi_input             # çıktı dosya adı (opsiyonel)
-}
 if st.button("Bıçağı Oluştur"):
 
     # Zorunluluk kontrolleri
@@ -218,4 +205,3 @@ if st.button("Bıçağı Oluştur"):
         "eurohole_name": eurohole_name,
         "eurohole_mesafe": eurohole_mesafe,
     }
-
