@@ -113,7 +113,18 @@ dosya_adi_input = st.text_input(
 
 # Temel alanlar
 boy_mm = st.number_input("Boy (mm)", min_value=0.0, value=170.0, step=1.0)
-gusset_base_name = st.selectbox("Kalıp Bıçağı", ["D404"])
+
+gusset_options = {
+    "D404 16x22": "D404",
+    "D500 18x25": "D500",
+    "D320 14x20": "D320",
+    }
+gusset_label = st.selectbox(
+    "Kalıp Bıçağı",
+    list(gusset_options.keys())
+    )
+gusset_base_name = gusset_options[gusset_label]
+
 kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
 middle_mm = (2 * kb) * -1
 dikis_kalinlik = st.number_input("Dikiş Kalınlığı (mm)", min_value=0.0, value=5.0, step=1.0)
