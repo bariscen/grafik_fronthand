@@ -141,31 +141,34 @@ with st.expander("Gelişmiş ayarları aç"):
             step=1.0,
         )
 
-    # -----------------------------------------
-    # ⭐ ZIPPER AYARLARI
-    # -----------------------------------------
-    zipper = st.selectbox("Zipper Var mı", ["False", "True"])
+# -----------------------------------------
+# ⭐ ZIPPER AYARLARI
+# -----------------------------------------
+zipper = st.selectbox("Zipper Var mı", ["False", "True"])
 
-    zipper_name = None
-    zip_mesafe = 0.0
-    sag_zip = "False"
+zipper_name = None
+zip_mesafe = 0.0
+sag_zip = "False"
 
-    if zipper == "True":
-        zipper_name = st.text_input(
-            "Zipper Dosya Adı (PDF adı, uzantısız)",
-            value="",
-            placeholder="örneğin 5A",
-        )
-        if zipper_name.strip() == "":
-            st.warning("⚠️ Zipper aktif → Zipper dosya adı zorunludur!")
+if zipper == "True":
 
-        zip_mesafe = st.number_input(
-            "Zipper Mesafesi (mm)",
-            min_value=0.0,
-            value=30.0,
-            step=1.0,
-        )
-        sag_zip = st.selectbox("Sağda da Zipper Var mı", ["False", "True"])
+    zipper_options = ["PE (6 mm) ZIP", "PE (10 mm) ZIP", "PP (11 mm) ZIP", "Standart ZIP", "VELCRO (16 mm) ZIP"]
+
+    zipper_name = st.selectbox(
+        "Zipper Tipi Seç (PDF adı, uzantısız)",
+        zipper_options,
+        index=0,
+    )
+
+    zip_mesafe = st.number_input(
+        "Zipper Mesafesi (mm)",
+        min_value=0.0,
+        value=30.0,
+        step=1.0,
+    )
+
+    sag_zip = st.selectbox("Sağda da Zipper Var mı", ["False", "True"])
+
 
     # -----------------------------------------
     # ⭐ EUROHOLE AYARLARI
