@@ -116,8 +116,10 @@ boy_mm = st.number_input("Boy (mm)", min_value=0.0, value=170.0, step=1.0)
 
 gusset_options = {
     "D404 164x50": "D404",
-    "D500 18x25": "D500",
-    "D320 14x20": "D320",
+    "D403 116x40": "D403",
+    "D407 180x45": "D407",
+    "D405 210x55" : "D405",
+    "D413 260x50" : "D413"
     }
 gusset_label = st.selectbox(
     "Kalıp Bıçağı",
@@ -163,7 +165,7 @@ with st.expander("Gelişmiş ayarları aç"):
 
     if zipper == "True":
 
-        zipper_options = ["PE (6 mm) ZIP", "PE (10 mm) ZIP", "PP (11 mm) ZIP", "Standart ZIP", "VELCRO (16 mm) ZIP", "Flexico (Senso Grip) ZIP", "VELCRO (22 mm) ZIP", "Aplix (16 mm) ZIP", "Aplix (22 mm) ZIP", "Front ZIP", "Child Resistant ZIP"]
+        zipper_options = ["PE (6 mm) ZIP", "PE (10 mm) ZIP", "PP (11 mm) ZIP", "Standart ZIP", "VELCRO (16 mm) ZIP", "Flexico (Senso Grip) ZIP", "VELCRO (22 mm) ZIP", "Aplix (16 mm) ZIP", "Front ZIP", "Child Resistant ZIP"]
 
         zipper_name = st.selectbox(
             "Zipper Tipi Seç (PDF adı, uzantısız)",
