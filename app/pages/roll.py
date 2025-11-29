@@ -145,7 +145,7 @@ with st.expander("Gelişmiş ayarları aç"):
     ust_yapisma = st.number_input("Üst Yapışma (mm)", min_value=0.0, value=0.0, step=0.5)
     alt_yapisma = st.number_input("Alt Yapışma (mm)", min_value=0.0, value=0.0, step=0.5)
     fotosel_h_mm = st.number_input("Fotosel Yükseklik (mm)", min_value=0.0, value=7.0, step=0.5)
-    fotosel_h_mm = st.number_input("Fotosel Genişlik (mm)", min_value=0.0, value=15.0, step=0.5)
+    fotosel_w_mm = st.number_input("Fotosel Genişlik (mm)", min_value=0.0, value=15.0, step=0.5)
 
 def to_none_if_zero(v: float):
     # 0 girilmişse backend için None gönder (demek ki “auto hesapla”)
