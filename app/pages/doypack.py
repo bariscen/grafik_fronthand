@@ -119,7 +119,8 @@ gusset_options = {
     "D403 116x40": "D403",
     "D407 180x45": "D407",
     "D405 210x55" : "D405",
-    "D413 260x50" : "D413"
+    "D413 260x50" : "D413",
+    "Deneme": "Deneme"
     }
 gusset_label = st.selectbox(
     "Kalıp Bıçağı",
