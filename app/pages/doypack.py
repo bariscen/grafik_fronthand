@@ -130,6 +130,7 @@ gusset_base_name = gusset_options[gusset_label]
 
 kb = gusset_label.split()
 birlesim = float(kb[-1])
+en_mm =  float(kb[-3])
 
 # kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
 # middle_mm = (2 * kb) * -1
@@ -242,6 +243,7 @@ if st.button("Bıçağı Oluştur"):
 
     payload = {
         "boy_mm": boy_mm,
+        "en_mm": en_mm,
         "birlesim": birlesim,
         "margin": margin,
         "sag_yapisma": dikis_kalinlik,
