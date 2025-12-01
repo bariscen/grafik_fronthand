@@ -128,8 +128,11 @@ gusset_label = st.selectbox(
     )
 gusset_base_name = gusset_options[gusset_label]
 
-kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
-middle_mm = (2 * kb) * -1
+kb = gusset_label.split()
+birlesim = float(kb[-1])
+
+# kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
+# middle_mm = (2 * kb) * -1
 dikis_kalinlik = st.number_input("Dikiş Kalınlığı (mm)", min_value=0.0, value=5.0, step=1.0)
 
 st.markdown("---")
@@ -239,7 +242,7 @@ if st.button("Bıçağı Oluştur"):
 
     payload = {
         "boy_mm": boy_mm,
-        "middle_mm": middle_mm,
+        "birlesim": birlesim,
         "margin": margin,
         "sag_yapisma": dikis_kalinlik,
         "sol_yapisma": dikis_kalinlik,
