@@ -20,7 +20,7 @@ st.markdown(
     }
 </style>
 """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=Var,
 )
 
 # Sol menü (sayfa navigation) ve hamburger menü gizle
@@ -33,7 +33,7 @@ st.markdown("""
         display: none;
     }
     </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=Var)
 
 # Üst menü, header, footer gizle
 st.markdown("""
@@ -42,7 +42,7 @@ st.markdown("""
     header {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=Var)
 
 # Arka plan rengi
 st.markdown("""
@@ -51,7 +51,7 @@ st.markdown("""
         background-color: #d3d3d3;
     }
     </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=Var)
 
 # ------------------------------------------------
 #  LOGO
@@ -91,13 +91,13 @@ st.markdown("""
         color: #FFBF00 !important;
     }
     </style>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=Var)
 
 with st.container():
-    st.markdown('<div data-testid="satis_button">', unsafe_allow_html=True)
+    st.markdown('<div data-testid="satis_button">', unsafe_allow_html=Var)
     if st.button("Bıçak Çizimi Menüsüne Dön", key="satis"):
         st.switch_page("pages/die-line.py")
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=Var)
 
 # ------------------------------------------------
 #  DOYPACK FORMU
@@ -142,16 +142,16 @@ st.subheader("Gelişmiş Ayarlar (opsiyonel)")
 with st.expander("Gelişmiş ayarları aç"):
 
     margin = st.number_input("Margin (mm)", min_value=0.0, value=25.0, step=1.0)
-    yuvarlama = st.selectbox("Radious Var mı", ["False", "True"])
-    valf = st.selectbox("Valf Var mı", ["False", "True"])
+    yuvarlama = st.selectbox("Radious Var mı", ["Yok", "Var"])
+    valf = st.selectbox("Valf Var mı", ["Yok", "Var"])
 
     # -----------------------------------------
     # ⭐ AÇ-KAPA AYARLARI
     # -----------------------------------------
-    ac_kapa = st.selectbox("Çentik Var mı", ["False", "True"])
+    ac_kapa = st.selectbox("Çentik Var mı", ["Yok", "Var"])
 
     ac_kapa_yer = 0.0
-    if ac_kapa == "True":
+    if ac_kapa == "Var":
         ac_kapa_yer = st.number_input(
             "Çentik Yeri (mm)",
             min_value=0.0,
@@ -162,13 +162,13 @@ with st.expander("Gelişmiş ayarları aç"):
     # -----------------------------------------
     # ⭐ ZIPPER AYARLARI
     # -----------------------------------------
-    zipper = st.selectbox("Zipper Var mı", ["False", "True"])
+    zipper = st.selectbox("Zipper Var mı", ["Yok", "Var"])
 
     zipper_name = None
     zip_mesafe = 0.0
-    sag_zip = "False"
+    sag_zip = "Yok"
 
-    if zipper == "True":
+    if zipper == "Var":
 
         zipper_options = ["PE (6 mm) ZIP", "PE (10 mm) ZIP", "PP (11 mm) ZIP", "Standart ZIP", "VELCRO (16 mm) ZIP", "Flexico (Senso Grip) ZIP", "VELCRO (22 mm) ZIP", "Aplix (16 mm) ZIP", "Front ZIP", "Child Resistant ZIP"]
 
@@ -185,18 +185,18 @@ with st.expander("Gelişmiş ayarları aç"):
             step=1.0,
         )
 
-        sag_zip = "True"
+        sag_zip = "Var"
 
 
     # -----------------------------------------
     # ⭐ EUROHOLE AYARLARI
     # -----------------------------------------
-    eurohole = st.selectbox("Eurohole Var mı", ["False", "True"])
+    eurohole = st.selectbox("Eurohole Var mı", ["Yok", "Var"])
 
     eurohole_name = None
     eurohole_mesafe = 0.0
 
-    if eurohole == "True":
+    if eurohole == "Var":
         eurohole_options = [
             "Eurohole 1_21cm",
             "Eurohole 2_33cm",
@@ -232,12 +232,12 @@ with st.expander("Gelişmiş ayarları aç"):
 if st.button("Bıçağı Oluştur"):
 
     # Zorunluluk kontrolleri
-    if zipper == "True" and (not zipper_name or zipper_name.strip() == ""):
+    if zipper == "Var" and (not zipper_name or zipper_name.strip() == ""):
         st.error("❌ Zipper aktif fakat 'Zipper Dosya Adı' girilmemiş!")
         st.stop()
 
     # selectbox kullandığımız için normalde boş olmaz ama yine de güvenlik:
-    if eurohole == "True" and not eurohole_name:
+    if eurohole == "Var" and not eurohole_name:
         st.error("❌ Eurohole aktif fakat 'Eurohole Dosyası' seçilmemiş!")
         st.stop()
 
@@ -248,23 +248,23 @@ if st.button("Bıçağı Oluştur"):
         "margin": margin,
         "sag_yapisma": dikis_kalinlik,
         "sol_yapisma": dikis_kalinlik,
-        "yuvarlama": yuvarlama == "True",
-        "valf": valf == "True",
+        "yuvarlama": yuvarlama == "Var",
+        "valf": valf == "Var",
         "gusset_base_name": gusset_base_name,
         "dosya_adi": dosya_adi_input,
 
         # Aç-kapa
-        "ac_kapa": ac_kapa == "True",
+        "ac_kapa": ac_kapa == "Var",
         "ac_kapa_yer": ac_kapa_yer,
 
         # Zipper
-        "zipper": zipper == "True",
+        "zipper": zipper == "Var",
         "zipper_name": zipper_name,
         "zip_mesafe": zip_mesafe,
-        "sag_zip": sag_zip == "True",
+        "sag_zip": sag_zip == "Var",
 
         # Eurohole
-        "eurohole": eurohole == "True",
+        "eurohole": eurohole == "Var",
         "eurohole_name": eurohole_name,
         "eurohole_mesafe": eurohole_mesafe,
     }
