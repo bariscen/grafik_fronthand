@@ -115,11 +115,11 @@ dosya_adi_input = st.text_input(
 boy_mm = st.number_input("Boy (mm)", min_value=0.0, value=170.0, step=1.0)
 
 gusset_options = {
-    "D404 164x50": "D404",
-    "D403 116x40": "D403",
-    "D407 180x45": "D407",
-    "D405 210x55" : "D405",
-    "D413 260x50" : "D413",
+    "D404 164 x 50": "D404",
+    "D403 116 x 40": "D403",
+    "D407 180 x 45": "D407",
+    "D405 210 x 55" : "D405",
+    "D413 260 x 50" : "D413",
     "Deneme": "Deneme"
     }
 gusset_label = st.selectbox(
@@ -138,18 +138,18 @@ st.subheader("Gelişmiş Ayarlar (opsiyonel)")
 with st.expander("Gelişmiş ayarları aç"):
 
     margin = st.number_input("Margin (mm)", min_value=0.0, value=25.0, step=1.0)
-    yuvarlama = st.selectbox("Yuvarlama Var mı", ["False", "True"])
+    yuvarlama = st.selectbox("Radious Var mı", ["False", "True"])
     valf = st.selectbox("Valf Var mı", ["False", "True"])
 
     # -----------------------------------------
     # ⭐ AÇ-KAPA AYARLARI
     # -----------------------------------------
-    ac_kapa = st.selectbox("Aç-Kapa Var mı", ["False", "True"])
+    ac_kapa = st.selectbox("Çentik Var mı", ["False", "True"])
 
     ac_kapa_yer = 0.0
     if ac_kapa == "True":
         ac_kapa_yer = st.number_input(
-            "Aç-Kapa Yeri (mm)",
+            "Çentik Yeri (mm)",
             min_value=0.0,
             value=20.0,
             step=1.0,
@@ -181,7 +181,7 @@ with st.expander("Gelişmiş ayarları aç"):
             step=1.0,
         )
 
-        sag_zip = st.selectbox("Sağda da Zipper Var mı", ["False", "True"])
+        sag_zip = "True"
 
 
     # -----------------------------------------
