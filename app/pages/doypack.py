@@ -20,7 +20,7 @@ st.markdown(
     }
 </style>
 """,
-    unsafe_allow_html=Var,
+    unsafe_allow_html=True,
 )
 
 # Sol menü (sayfa navigation) ve hamburger menü gizle
@@ -33,7 +33,7 @@ st.markdown("""
         display: none;
     }
     </style>
-""", unsafe_allow_html=Var)
+""", unsafe_allow_html=True)
 
 # Üst menü, header, footer gizle
 st.markdown("""
@@ -42,7 +42,7 @@ st.markdown("""
     header {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
-""", unsafe_allow_html=Var)
+""", unsafe_allow_html=True)
 
 # Arka plan rengi
 st.markdown("""
@@ -51,7 +51,7 @@ st.markdown("""
         background-color: #d3d3d3;
     }
     </style>
-""", unsafe_allow_html=Var)
+""", unsafe_allow_html=True)
 
 # ------------------------------------------------
 #  LOGO
@@ -91,13 +91,13 @@ st.markdown("""
         color: #FFBF00 !important;
     }
     </style>
-""", unsafe_allow_html=Var)
+""", unsafe_allow_html=True)
 
 with st.container():
-    st.markdown('<div data-testid="satis_button">', unsafe_allow_html=Var)
+    st.markdown('<div data-testid="satis_button">', unsafe_allow_html=True)
     if st.button("Bıçak Çizimi Menüsüne Dön", key="satis"):
         st.switch_page("pages/die-line.py")
-    st.markdown("</div>", unsafe_allow_html=Var)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------
 #  DOYPACK FORMU
@@ -142,13 +142,13 @@ st.subheader("Gelişmiş Ayarlar (opsiyonel)")
 with st.expander("Gelişmiş ayarları aç"):
 
     margin = st.number_input("Margin (mm)", min_value=0.0, value=25.0, step=1.0)
-    yuvarlama = st.selectbox("Radious Var mı", ["Yok", "Var"])
-    valf = st.selectbox("Valf Var mı", ["Yok", "Var"])
+    yuTruelama = st.selectbox("Radious True mı", ["Yok", "Var"])
+    valf = st.selectbox("Valf True mı", ["Yok", "Var"])
 
     # -----------------------------------------
     # ⭐ AÇ-KAPA AYARLARI
     # -----------------------------------------
-    ac_kapa = st.selectbox("Çentik Var mı", ["Yok", "Var"])
+    ac_kapa = st.selectbox("Çentik True mı", ["Yok", "Var"])
 
     ac_kapa_yer = 0.0
     if ac_kapa == "Var":
@@ -162,7 +162,7 @@ with st.expander("Gelişmiş ayarları aç"):
     # -----------------------------------------
     # ⭐ ZIPPER AYARLARI
     # -----------------------------------------
-    zipper = st.selectbox("Zipper Var mı", ["Yok", "Var"])
+    zipper = st.selectbox("Zipper True mı", ["Yok", "Var"])
 
     zipper_name = None
     zip_mesafe = 0.0
@@ -191,7 +191,7 @@ with st.expander("Gelişmiş ayarları aç"):
     # -----------------------------------------
     # ⭐ EUROHOLE AYARLARI
     # -----------------------------------------
-    eurohole = st.selectbox("Eurohole Var mı", ["Yok", "Var"])
+    eurohole = st.selectbox("Eurohole True mı", ["Yok", "Var"])
 
     eurohole_name = None
     eurohole_mesafe = 0.0
@@ -248,7 +248,7 @@ if st.button("Bıçağı Oluştur"):
         "margin": margin,
         "sag_yapisma": dikis_kalinlik,
         "sol_yapisma": dikis_kalinlik,
-        "yuvarlama": yuvarlama == "Var",
+        "yuTruelama": yuTruelama == "Var",
         "valf": valf == "Var",
         "gusset_base_name": gusset_base_name,
         "dosya_adi": dosya_adi_input,
