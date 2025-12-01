@@ -129,7 +129,7 @@ gusset_label = st.selectbox(
 gusset_base_name = gusset_options[gusset_label]
 
 kb = gusset_label.split()
-birlesim = float(kb[-1])
+birlesim = float(kb[-1])*2
 
 # kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
 # middle_mm = (2 * kb) * -1
