@@ -143,7 +143,30 @@ with st.expander("Gelişmiş ayarları aç"):
 
     margin = st.number_input("Margin (mm)", min_value=0.0, value=25.0, step=1.0)
     yuvarlama = st.selectbox("Radious Var mı", ["Yok", "Var"])
+
+    # -----------------------------------------
+    # ⭐ VALF AYARLARI
+    # -----------------------------------------
+
     valf = st.selectbox("Valf Var mı", ["Yok", "Var"])
+
+    valf_mesafe = 0
+    valf_panel = "sag"
+    if valf == "Var":
+        valf_mesafe = st.number_input(
+            "Valf Yeri (mm)",
+            min_value=0.0,
+            value=55.0,
+            step=1.0,
+        )
+        valf_p = st.selectbox("Valf Önde mi Arkada mı", ["Ön Taraf", "Arka Taraf"])
+
+        if valf_p == "Ön Taraf":
+            valf_panel = "sol"
+        else:
+            valf_panel = "sag"
+
+
 
     # -----------------------------------------
     # ⭐ AÇ-KAPA AYARLARI
@@ -249,7 +272,11 @@ if st.button("Bıçağı Oluştur"):
         "sag_yapisma": dikis_kalinlik,
         "sol_yapisma": dikis_kalinlik,
         "yuvarlama": yuvarlama == "Var",
+
         "valf": valf == "Var",
+        "valf_panel": valf_panel,
+        "valf_ic_mesafe_mm": valf_mesafe,
+
         "gusset_base_name": gusset_base_name,
         "dosya_adi": dosya_adi_input,
 
