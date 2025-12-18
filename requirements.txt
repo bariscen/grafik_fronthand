@@ -9,3 +9,5 @@ pytz            # time zone management
 uvicorn         # web server
 httpx           # HTTP client
 requests
+PyMuPDF
+shapely

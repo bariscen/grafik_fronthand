@@ -89,18 +89,23 @@ div.stButton > button {
 """, unsafe_allow_html=True)
 
 # --- 2 Buton Üstte ---
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
+    if st.button("Converter"):
+        with st.spinner("Sayfa yükleniyor..."):
+            st.switch_page("pages/converter.py")
+
+
+with col2:
     if st.button("Bobin"):
         with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/roll.py")
 
-with col2:
+with col3:
     if st.button("Doypack"):
         with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/doypack.py")
-
 
 
 
