@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union, Optional
 
 import fitz  # PyMuPDF
-from shapely.geometry import LineString, box, MultiPolygon
+from shapely.geometry import LineString, box, Polygon
 from shapely.ops import unary_union, polygonize
 
 
@@ -44,41 +44,21 @@ def process_pdf(
         page_height = src_page.rect.height
         paths = src_page.get_drawings()
 
-        # --- BIÇAK İZİ ARAMA STRATEJİSİ ---
-        bicak_izleri = [
-            p for p in paths
-            if p.get("width") is not None
-            and abs(p["width"] - hedef_kalinlik) <= 0.1
-            and p["rect"].y1 < (page_height / 2)
-        ]
+        # --- BIÇAK İZİ ARAMA STRATEJİSİ (Aynen Korundu) ---
+        bicak_izleri = [p for p in paths if p.get("width") is not None and abs(p["width"] - hedef_kalinlik) <= 0.1 and p["rect"].y1 < (page_height / 2)]
+        if not bicak_izleri:
+            bicak_izleri = [p for p in paths if p.get("width") is not None and abs(p["width"] - hedef_kalinlik) <= 0.1]
+        if not bicak_izleri:
+            bicak_izleri = [p for p in paths if p.get("width") is not None and 1 <= p["width"] <= 5]
+        if not bicak_izleri:
+            bicak_izleri = [p for p in paths if p["rect"].width > 50 or p["rect"].height > 50]
 
         if not bicak_izleri:
-            bicak_izleri = [
-                p for p in paths
-                if p.get("width") is not None
-                and abs(p["width"] - hedef_kalinlik) <= 0.1
-            ]
-
-        if not bicak_izleri:
-            bicak_izleri = [
-                p for p in paths
-                if p.get("width") is not None
-                and 1 <= p["width"] <= 5
-            ]
-
-        if not bicak_izleri:
-            bicak_izleri = [
-                p for p in paths
-                if p["rect"].width > 50 or p["rect"].height > 50
-            ]
-
-        if not bicak_izleri:
-            raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi.name}")
+            raise ValueError(f"Bıçak izi bulunamadı.")
 
         try:
             union_rect = fitz.Rect(bicak_izleri[0]["rect"])
-            for p in bicak_izleri[1:]:
-                union_rect |= p["rect"]
+            for p in bicak_izleri[1:]: union_rect |= p["rect"]
             final_rect = union_rect
         except:
             final_rect = src_page.rect
@@ -96,17 +76,12 @@ def process_pdf(
                         all_lines.append(LineString([(a.x, a.y), (b.x, b.y)]))
                     elif item[0] == "c":
                         p0, p1, p2, p3 = [v - offset for v in item[1:5]]
-                        pts = bezier_points(p0, p1, p2, p3, n=int(bezier_adim))
-                        all_lines.append(LineString(pts))
+                        all_lines.append(LineString(bezier_points(p0, p1, p2, p3, n=int(bezier_adim))))
 
             merged = unary_union(all_lines)
-
-            # --- KRİTİK DEĞİŞİKLİK: TÜM POLİGONLARI TUT ---
-            # Sadece en büyüğü değil, bulunan tüm kapalı alanları (iç üçgenler dahil) işleme alıyoruz.
             polys = list(polygonize(merged))
 
             if not polys:
-                # Çizgiler tam birleşmiyorsa uçları yapıştırmak için hafif buffer
                 refined = merged.buffer(1.2).buffer(-1.1)
                 if refined.geom_type == 'Polygon':
                     polys = [refined]
@@ -114,39 +89,45 @@ def process_pdf(
                     polys = [g for g in refined.geoms if g.geom_type == 'Polygon']
 
             if not polys:
-                poly = box(*merged.bounds)
+                poly_to_hatch = box(*merged.bounds)
             else:
-                # ÖNEMLİ: Tüm poligonları birleştiriyoruz.
-                # Böylece iç üçgenler "boşluk" (hole) olarak değil, taranacak "alan" olarak kalır.
-                poly = unary_union(polys)
+                # --- KRİTİK DÜZELTME: İÇ ÜÇGENLERİ DELİK OLARAK TANIMLA ---
+                # 1. En büyük poligonu dış çerçeve seç
+                outer_poly = max(polys, key=lambda p: p.area)
+                # 2. Diğer tüm poligonları (üçgenleri) "iç boşluk/delik" olarak belirle
+                inner_holes = [p for p in polys if p != outer_poly and p.within(outer_poly)]
 
-            poly = poly.buffer(float(buffer_eps))
+                # 3. Dış çerçeveden iç boşlukları çıkar (Böylece içleri taranmaz)
+                if inner_holes:
+                    poly_to_hatch = outer_poly.difference(unary_union(inner_holes))
+                else:
+                    poly_to_hatch = outer_poly
 
-            # Çizim ve Tarama
+            poly_to_hatch = poly_to_hatch.buffer(float(buffer_eps))
+
+            # Çizim (Dış ve İç Hatları Çiz)
             shape_outline = new_page.new_shape()
-            shape_hatch = new_page.new_shape()
 
-            # Dış hat ve iç hat çizimi
-            def draw_geom_outline(geom):
+            def draw_poly_with_holes(geom):
                 if geom.geom_type == 'Polygon':
-                    # Dış çerçeve
+                    # Dış Sınır
                     coords = list(geom.exterior.coords)
                     for i in range(len(coords)-1):
                         shape_outline.draw_line(fitz.Point(*coords[i]), fitz.Point(*coords[i+1]))
-                    # Varsa iç delik çerçeveleri
+                    # İç Boşluk Sınırları (Üçgenler)
                     for interior in geom.interiors:
                         coords = list(interior.coords)
                         for i in range(len(coords)-1):
                             shape_outline.draw_line(fitz.Point(*coords[i]), fitz.Point(*coords[i+1]))
                 elif hasattr(geom, 'geoms'):
-                    for g in geom.geoms:
-                        draw_geom_outline(g)
+                    for g in geom.geoms: draw_poly_with_holes(g)
 
-            draw_geom_outline(poly)
+            draw_poly_with_holes(poly_to_hatch)
             shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
             shape_outline.commit()
 
-            # Tarama işlemi
+            # Tarama (Sadece poligonun "dolu" kısımlarını tara)
+            shape_hatch = new_page.new_shape()
             diag = math.sqrt(new_page.rect.width**2 + new_page.rect.height**2)
             angle_rad = math.radians(angle_deg)
             dx, dy = math.cos(angle_rad), math.sin(angle_rad)
@@ -158,15 +139,16 @@ def process_pdf(
                 line = LineString([(cx - dx * diag, cy - dy * diag), (cx + dx * diag, cy + dy * diag)])
 
                 try:
-                    inter = poly.intersection(line)
+                    # Difference ile oluşturduğumuz için iç boşluklarda kesişim (intersection) oluşmaz
+                    inter = poly_to_hatch.intersection(line)
                     if inter.is_empty: continue
 
-                    def draw_it(geom):
-                        if geom.geom_type == "LineString":
-                            pts = list(geom.coords)
+                    def draw_it(g):
+                        if g.geom_type == "LineString":
+                            pts = list(g.coords)
                             shape_hatch.draw_line(fitz.Point(*pts[0]), fitz.Point(*pts[-1]))
-                        elif hasattr(geom, 'geoms'):
-                            for g in geom.geoms: draw_it(g)
+                        elif hasattr(g, 'geoms'):
+                            for sub_g in g.geoms: draw_it(sub_g)
 
                     draw_it(inter)
                 except:
