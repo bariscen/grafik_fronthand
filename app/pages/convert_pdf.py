@@ -11,7 +11,6 @@ from shapely.ops import unary_union, polygonize
 
 
 def bezier_points(p0, p1, p2, p3, n: int = 20):
-    """Bezier eğrisini noktalara çevirir."""
     pts = []
     for i in range(n + 1):
         t = i / n
@@ -32,15 +31,7 @@ def process_pdf(
     yon: int = 1,
     output_dir: Optional[Union[str, Path]] = None,
 ) -> Path:
-    """
-    1. Önce senin 2.83 kalınlık kuralını dener.
-    2. Bulamazsa sayfanın üstündeki en kalın çizgiye geçer.
-    3. Geometri açıksa (U profil gibi) buffer ile kapatır.
-    """
     dosya_adi = Path(dosya_adi)
-    if not dosya_adi.exists():
-        raise FileNotFoundError(f"PDF bulunamadı: {dosya_adi}")
-
     angle_deg = float(tarama_acisi_derece)
     base = dosya_adi.stem
     out_dir = Path(output_dir) if output_dir else dosya_adi.parent
@@ -53,7 +44,7 @@ def process_pdf(
         page_height = src_page.rect.height
         paths = src_page.get_drawings()
 
-        # --- ÖNCELİK 1: SENİN ORİJİNAL FİLTREN ---
+        # --- ADIM 1: SENİN ORİJİNAL KURALIN (Üst Yarı + 2.83) ---
         bicak_izleri = [
             p for p in paths
             if p.get("width") is not None
@@ -61,22 +52,28 @@ def process_pdf(
             and p["rect"].y1 < (page_height / 2)
         ]
 
-        # --- ÖNCELİK 2: EĞER BOŞSA EN KALIN ÇİZGİYİ BUL ---
+        # --- ADIM 2: BULAMAZSA ÜST YARI KISITLAMASINI KALDIR (Tüm Sayfa + 2.83) ---
         if not bicak_izleri:
-            upper_paths = [p for p in paths if p["rect"].y1 < (page_height / 2) and p.get("width") is not None]
-            if upper_paths:
-                max_w = max(p["width"] for p in upper_paths)
-                if max_w > 0.5:
-                    bicak_izleri = [p for p in upper_paths if abs(p["width"] - max_w) < 0.1]
+            bicak_izleri = [
+                p for p in paths
+                if p.get("width") is not None
+                and abs(p["width"] - hedef_kalinlik) <= 0.1
+            ]
+
+        # --- ADIM 3: YİNE BULAMAZSA TÜM SAYFADA EN KALIN ÇİZGİYİ BUL ---
+        if not bicak_izleri:
+            tum_genis_yollar = [p for p in paths if p.get("width") is not None and p["width"] > 0.5]
+            if tum_genis_yollar:
+                max_w = max(p["width"] for p in tum_genis_yollar)
+                bicak_izleri = [p for p in tum_genis_yollar if abs(p["width"] - max_w) < 0.1]
 
         if not bicak_izleri:
             raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi.name}")
 
-        # Alan belirleme
+        # Bounding box hesapla
         union_rect = bicak_izleri[0]["rect"]
         for p in bicak_izleri[1:]:
             union_rect |= p["rect"]
-
         final_rect = union_rect
 
         new_doc = fitz.open()
@@ -84,7 +81,6 @@ def process_pdf(
             new_page = new_doc.new_page(width=final_rect.width, height=final_rect.height)
             offset = final_rect.tl
 
-            # Çizgileri topla
             all_lines = []
             shape_outline = new_page.new_shape()
             for p in bicak_izleri:
@@ -102,13 +98,12 @@ def process_pdf(
             shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
             shape_outline.commit()
 
-            # Poligon oluşturma
+            # Poligon oluştur
             merged = unary_union(all_lines)
             polys = list(polygonize(merged))
 
-            # --- AÇIK GEOMETRİ KURTARMA ---
+            # --- GEOMETRİ KURTARMA (Açık uçlar için) ---
             if not polys:
-                # 0.2mm şişirip kapatmayı dene
                 refined = merged.buffer(0.2).buffer(-0.2)
                 if refined.geom_type == 'Polygon':
                     polys = [refined]
@@ -116,7 +111,7 @@ def process_pdf(
                     polys = [g for g in refined.geoms if g.geom_type == 'Polygon']
 
             if not polys:
-                raise ValueError(f"Polygonize başarısız (Geometri açık): {dosya_adi.name}")
+                raise ValueError(f"Polygonize başarısız (Çizim kapalı değil): {dosya_adi.name}")
 
             outer = max(polys, key=lambda p: p.area)
             holes = [p for p in polys if p is not outer and p.within(outer)]
