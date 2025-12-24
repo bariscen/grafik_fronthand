@@ -1,4 +1,26 @@
-# ... (üst kısımdaki importlar ve bezier_points aynı kalıyor)
+from __future__ import annotations
+
+import os
+import math
+from pathlib import Path
+from typing import Union, Optional
+
+import fitz  # PyMuPDF
+from shapely.geometry import LineString
+from shapely.ops import unary_union, polygonize
+
+
+def bezier_points(p0, p1, p2, p3, n: int = 20):
+    """Bezier eğrisini noktalara çevirir."""
+    pts = []
+    for i in range(n + 1):
+        t = i / n
+        mt = 1 - t
+        x = (mt**3) * p0.x + 3 * (mt**2) * t * p1.x + 3 * mt * (t**2) * p2.x + (t**3) * p3.x
+        y = (mt**3) * p0.y + 3 * (mt**2) * t * p1.y + 3 * mt * (t**2) * p2.y + (t**3) * p3.y
+        pts.append((x, y))
+    return pts
+
 
 def process_pdf(
     dosya_adi: Union[str, Path],
@@ -10,6 +32,11 @@ def process_pdf(
     yon: int = 1,
     output_dir: Optional[Union[str, Path]] = None,
 ) -> Path:
+    """
+    1. Önce senin 2.83 kalınlık kuralını dener.
+    2. Bulamazsa sayfanın üstündeki en kalın çizgiye geçer.
+    3. Geometri açıksa (U profil gibi) buffer ile kapatır.
+    """
     dosya_adi = Path(dosya_adi)
     if not dosya_adi.exists():
         raise FileNotFoundError(f"PDF bulunamadı: {dosya_adi}")
@@ -26,8 +53,7 @@ def process_pdf(
         page_height = src_page.rect.height
         paths = src_page.get_drawings()
 
-        # --- ADIM 1: SENİN ORİJİNAL KODUN ---
-        # Önce tam 2.83 kalınlığını (0.1 tolerans ile) arıyoruz
+        # --- ÖNCELİK 1: SENİN ORİJİNAL FİLTREN ---
         bicak_izleri = [
             p for p in paths
             if p.get("width") is not None
@@ -35,37 +61,30 @@ def process_pdf(
             and p["rect"].y1 < (page_height / 2)
         ]
 
-        # --- ADIM 2: EĞER HATA VERİRSE (BOŞSA) EN KALIN ÇİZGİYE GİT ---
+        # --- ÖNCELİK 2: EĞER BOŞSA EN KALIN ÇİZGİYİ BUL ---
         if not bicak_izleri:
-            # Sayfanın üst yarısındaki, genişliği olan tüm yolları al
             upper_paths = [p for p in paths if p["rect"].y1 < (page_height / 2) and p.get("width") is not None]
             if upper_paths:
-                # Bulabildiği en büyük kalınlığı tespit et
                 max_w = max(p["width"] for p in upper_paths)
-                # Sadece bu kalınlıktaki (veya çok yakınındaki) çizgileri seç
-                if max_w > 0.5: # Yazı veya çok ince çizgi olmasın diye emniyet
+                if max_w > 0.5:
                     bicak_izleri = [p for p in upper_paths if abs(p["width"] - max_w) < 0.1]
 
-        # Eğer hala bulunamadıysa şimdi hata fırlatabiliriz
         if not bicak_izleri:
             raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi.name}")
 
-        # ... (Geri kalan işlemler: union_rect, poligon oluşturma ve tarama aynı kalıyor)
-
-        # Poligon oluştururken de senin orijinal polygonize mantığını koruyup,
-        # başarısız olursa buffer'lı kurtarmayı (B Planı) aşağıda tutuyorum:
-
+        # Alan belirleme
         union_rect = bicak_izleri[0]["rect"]
         for p in bicak_izleri[1:]:
             union_rect |= p["rect"]
 
-        final_rect = union_rect # Orijinal kodunda margin yoktu, koruyoruz
+        final_rect = union_rect
 
         new_doc = fitz.open()
         try:
             new_page = new_doc.new_page(width=final_rect.width, height=final_rect.height)
             offset = final_rect.tl
 
+            # Çizgileri topla
             all_lines = []
             shape_outline = new_page.new_shape()
             for p in bicak_izleri:
@@ -83,12 +102,13 @@ def process_pdf(
             shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
             shape_outline.commit()
 
+            # Poligon oluşturma
             merged = unary_union(all_lines)
             polys = list(polygonize(merged))
 
-            # Senin kodunda polygonize başarısız olunca sistem çöküyordu.
-            # Buraya o %10'luk kısım için buffer kurtarmasını ekledim:
+            # --- AÇIK GEOMETRİ KURTARMA ---
             if not polys:
+                # 0.2mm şişirip kapatmayı dene
                 refined = merged.buffer(0.2).buffer(-0.2)
                 if refined.geom_type == 'Polygon':
                     polys = [refined]
@@ -96,14 +116,14 @@ def process_pdf(
                     polys = [g for g in refined.geoms if g.geom_type == 'Polygon']
 
             if not polys:
-                raise ValueError(f"Polygonize başarısız: {dosya_adi.name}")
+                raise ValueError(f"Polygonize başarısız (Geometri açık): {dosya_adi.name}")
 
             outer = max(polys, key=lambda p: p.area)
             holes = [p for p in polys if p is not outer and p.within(outer)]
             poly = outer.difference(unary_union(holes)) if holes else outer
             poly = poly.buffer(float(buffer_eps))
 
-            # Tarama kısmı (Senin orijinal tarama kodun)
+            # Tarama
             shape_hatch = new_page.new_shape()
             w, h = new_page.rect.width, new_page.rect.height
             diag = math.sqrt(w * w + h * h)
@@ -142,5 +162,4 @@ def process_pdf(
     finally:
         doc.close()
 
-    print(f"OK: {dosya_adi} -> {cikti_adi}")
     return cikti_adi
