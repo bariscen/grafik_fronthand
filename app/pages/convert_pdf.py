@@ -62,19 +62,28 @@ def process_pdf(
 
         # --- ADIM 3: YİNE BULAMAZSA TÜM SAYFADA EN KALIN ÇİZGİYİ BUL ---
         if not bicak_izleri:
-            tum_genis_yollar = [p for p in paths if p.get("width") is not None and p["width"] > 0.5]
-            if tum_genis_yollar:
-                max_w = max(p["width"] for p in tum_genis_yollar)
-                bicak_izleri = [p for p in tum_genis_yollar if abs(p["width"] - max_w) < 0.1]
+            # Genişliği olan yolları filtrele
+            yollar = [p for p in paths if p.get("width") is not None and p["width"] > 0.3]
+            if yollar:
+                max_w = max(p["width"] for p in yollar)
+                bicak_izleri = [p for p in yollar if abs(p["width"] - max_w) < 0.1]
 
         if not bicak_izleri:
             raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi.name}")
 
-        # Bounding box hesapla
-        union_rect = bicak_izleri[0]["rect"]
-        for p in bicak_izleri[1:]:
-            union_rect |= p["rect"]
-        final_rect = union_rect
+        # --- 73. Satır Hatasını Önlemek İçin Güvenli Bounding Box Hesaplama ---
+        try:
+            union_rect = fitz.Rect(bicak_izleri[0]["rect"])
+            for p in bicak_izleri[1:]:
+                union_rect |= p["rect"]
+
+            if union_rect.is_empty or union_rect.width == 0:
+                # Eğer rect geçersizse sayfa boyutunu kullan
+                final_rect = src_page.rect
+            else:
+                final_rect = union_rect
+        except Exception:
+            final_rect = src_page.rect
 
         new_doc = fitz.open()
         try:
@@ -98,27 +107,27 @@ def process_pdf(
             shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
             shape_outline.commit()
 
-            # Poligon oluştur
+            # Poligon oluştur ve Boş Uçları Kapat
             merged = unary_union(all_lines)
             polys = list(polygonize(merged))
 
-            # --- GEOMETRİ KURTARMA (Açık uçlar için) ---
+            # --- GEOMETRİ KURTARMA ---
             if not polys:
-                refined = merged.buffer(0.2).buffer(-0.2)
+                refined = merged.buffer(0.3).buffer(-0.2)
                 if refined.geom_type == 'Polygon':
                     polys = [refined]
                 elif hasattr(refined, 'geoms'):
                     polys = [g for g in refined.geoms if g.geom_type == 'Polygon']
 
             if not polys:
-                raise ValueError(f"Polygonize başarısız (Çizim kapalı değil): {dosya_adi.name}")
+                raise ValueError(f"Geometri kapatılamadı (Polygonize hatası): {dosya_adi.name}")
 
             outer = max(polys, key=lambda p: p.area)
             holes = [p for p in polys if p is not outer and p.within(outer)]
             poly = outer.difference(unary_union(holes)) if holes else outer
             poly = poly.buffer(float(buffer_eps))
 
-            # Tarama
+            # Tarama (Hatching)
             shape_hatch = new_page.new_shape()
             w, h = new_page.rect.width, new_page.rect.height
             diag = math.sqrt(w * w + h * h)
