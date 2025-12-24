@@ -42,12 +42,11 @@ def process_pdf(
     try:
         src_page = doc[0]
         page_height = src_page.rect.height
-        page_width = src_page.rect.width
         paths = src_page.get_drawings()
 
-        # --- GÜÇLENDİRİLMİŞ BIÇAK SEÇİMİ ---
+        # --- BIÇAK İZİ ARAMA STRATEJİSİ ---
 
-        # 1. Aşama: 2.83 kalınlık ve Üst Yarı (Senin kuralın)
+        # 1. Adım: Üst Yarı + 2.83 mm
         bicak_izleri = [
             p for p in paths
             if p.get("width") is not None
@@ -55,7 +54,7 @@ def process_pdf(
             and p["rect"].y1 < (page_height / 2)
         ]
 
-        # 2. Aşama: Eğer bulamazsa, sayfadaki tüm 2.83'lükleri al
+        # 2. Adım: Tüm Sayfa + 2.83 mm
         if not bicak_izleri:
             bicak_izleri = [
                 p for p in paths
@@ -63,22 +62,26 @@ def process_pdf(
                 and abs(p["width"] - hedef_kalinlik) <= 0.1
             ]
 
-        # 3. Aşama: Sayfa genelinde bıçak izi olabilecek tüm "büyük" çizimleri topla
-        # Sayıları elemek için en az 50 birim genişlik/yükseklik şartı
+        # 3. Adım: YENİ MANTIK - Tüm Sayfada 0.50 mm - 0.60 mm arası çizgiler
         if not bicak_izleri:
+            bicak_izleri = [
+                p for p in paths
+                if p.get("width") is not None
+                and 0.45 <= p["width"] <= 0.65
+            ]
+
+        # 4. Adım: DERİN ARAMA - Rakamları eleyerek en büyük alanı bul
+        if not bicak_izleri:
+            # Sayıları elemek için en az 50 birim genişlik/yükseklik şartı
             bicak_izleri = [
                 p for p in paths
                 if p["rect"].width > 50 or p["rect"].height > 50
             ]
 
         if not bicak_izleri:
-            # Hiç büyük çizim yoksa her şeyi al (son çare)
-            bicak_izleri = paths
-
-        if not bicak_izleri:
             raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi.name}")
 
-        # Alan Belirleme (Bounding Box)
+        # Bounding Box ve Margin Ayarı (Margin yok dediğin için +1 tolerans)
         try:
             union_rect = fitz.Rect(bicak_izleri[0]["rect"])
             for p in bicak_izleri[1:]:
@@ -89,7 +92,7 @@ def process_pdf(
 
         new_doc = fitz.open()
         try:
-            # Margin yoksa koordinat kaymasını önlemek için 1 birim pay
+            # Kenarlardaki çizgilerin kesilmemesi için sayfayı 2 birim genişletiyoruz
             new_page = new_doc.new_page(width=final_rect.width + 2, height=final_rect.height + 2)
             offset = final_rect.tl - fitz.Point(1, 1)
 
@@ -104,13 +107,11 @@ def process_pdf(
                         pts = bezier_points(p0, p1, p2, p3, n=int(bezier_adim))
                         all_lines.append(LineString(pts))
 
-            # Tüm çizgileri birleştir ve poligon oluştur
             merged = unary_union(all_lines)
             polys = list(polygonize(merged))
 
-            # --- RAKAMLARI ELEME VE GEOMETRİ KURTARMA ---
+            # Geometri Kurtarma (Çizgiler tam birleşmiyorsa)
             if not polys:
-                # Çizgiler uç uca değmiyorsa şişir (rakamları değil bıçağı birleştirir)
                 refined = merged.buffer(1.2).buffer(-1.1)
                 if refined.geom_type == 'Polygon':
                     polys = [refined]
@@ -118,31 +119,33 @@ def process_pdf(
                     polys = [g for g in refined.geoms if g.geom_type == 'Polygon']
 
             if not polys:
-                raise ValueError("Bıçak izi kapalı bir alan oluşturmuyor.")
-
-            # EN ÖNEMLİ KISIM: Sayfadaki en büyük alanı seç (Bu her zaman bıçak izidir, rakamlar küçüktür)
-            poly = max(polys, key=lambda p: p.area)
-
-            # İç delikler varsa (U profilin içi gibi) onları çıkar
-            holes = [p for p in polys if p is not poly and p.within(poly)]
-            if holes:
-                poly = poly.difference(unary_union(holes))
+                # Hiç poligon oluşmazsa mecbur kutu kullanıyoruz
+                poly = box(*merged.bounds)
+            else:
+                # Sayıları elemek için her zaman en büyük alanı seç
+                poly = max(polys, key=lambda p: p.area)
+                holes = [p for p in polys if p is not poly and p.within(poly)]
+                if holes:
+                    poly = poly.difference(unary_union(holes))
 
             poly = poly.buffer(float(buffer_eps))
 
-            # Dış hat çizimi
+            # Çizim ve Tarama
             shape_outline = new_page.new_shape()
+            shape_hatch = new_page.new_shape()
+
+            # Dış hat
             if poly.geom_type == 'Polygon':
                 coords = list(poly.exterior.coords)
                 for i in range(len(coords)-1):
                     shape_outline.draw_line(fitz.Point(*coords[i]), fitz.Point(*coords[i+1]))
+
             shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
             shape_outline.commit()
 
-            # Tarama (Hatching)
-            shape_hatch = new_page.new_shape()
+            # Tarama işlemi
             diag = math.sqrt(new_page.rect.width**2 + new_page.rect.height**2)
-            angle_rad = math.radians(float(tarama_acisi_derece))
+            angle_rad = math.radians(angle_deg)
             dx, dy = math.cos(angle_rad), math.sin(angle_rad)
             nx, ny = -dy, dx
 
