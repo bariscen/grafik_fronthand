@@ -124,23 +124,19 @@ dosya_adi_input = st.text_input(
 )
 
 # Temel alanlar
-toplam_en = st.number_input("Toplam En (mm)", min_value=0.0, value=350.0, step=1.0)
-toplam_boy = st.number_input("Toplam Boy (mm)", min_value=0.0, value=210.0, step=1.0)
+toplam_en = st.number_input("Bobin Eni (mm)", min_value=0.0, value=350.0, step=1.0)
+toplam_boy = st.number_input("Fotosel Boyu (mm)", min_value=0.0, value=210.0, step=1.0)
 yapistirma = st.selectbox("Yapıştırma tipi", ["AA", "AB"])
 
 st.markdown("---")
 st.subheader("Gelişmiş Ayarlar (opsiyonel)")
 
 with st.expander("Gelişmiş ayarları aç"):
-    bleed = st.number_input("Bleed (mm)", min_value=0.0, value=3.0, step=0.5)
-    margin = st.number_input("Margin (mm)", min_value=0.0, value=27.0, step=1.0)
+    bleed = st.number_input("Bıçak (mm)", min_value=0.0, value=3.0, step=0.5)
+    margin = 27
 
     sol_yapisma = st.number_input("Sol Yapışma (mm)", min_value=0.0, value=0.0, step=0.5)
     sag_yapisma = st.number_input("Sağ Yapışma (mm)", min_value=0.0, value=0.0, step=0.5)
-
-    sol_panel = st.number_input("Sol Panel (mm)", min_value=0.0, value=0.0, step=0.5)
-    orta_panel = st.number_input("Orta Panel (mm)", min_value=0.0, value=0.0, step=0.5)
-    sag_panel = st.number_input("Sağ Panel (mm)", min_value=0.0, value=0.0, step=0.5)
 
     ust_yapisma = st.number_input("Üst Yapışma (mm)", min_value=0.0, value=0.0, step=0.5)
     alt_yapisma = st.number_input("Alt Yapışma (mm)", min_value=0.0, value=0.0, step=0.5)
@@ -161,9 +157,9 @@ if st.button("Bıçağı Oluştur"):
         "margin_mm": margin,
         "sol_yapisma_mm": to_none_if_zero(sol_yapisma),
         "sag_yapisma_mm": to_none_if_zero(sag_yapisma),
-        "sol_panel_mm": to_none_if_zero(sol_panel),
-        "orta_panel_mm": to_none_if_zero(orta_panel),
-        "sag_panel_mm": to_none_if_zero(sag_panel),
+        "sol_panel_mm": to_none_if_zero(0),
+        "orta_panel_mm": to_none_if_zero(0),
+        "sag_panel_mm": to_none_if_zero(0),
         "ust_yapisma_mm": to_none_if_zero(ust_yapisma),
         "alt_yapisma_mm": to_none_if_zero(alt_yapisma),
         "dosya_adi": dosya_adi_input,
