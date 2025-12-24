@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union, Optional
 
 import fitz  # PyMuPDF
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, box, MultiPolygon
 from shapely.ops import unary_union, polygonize
 
 
@@ -44,55 +44,36 @@ def process_pdf(
         page_height = src_page.rect.height
         paths = src_page.get_drawings()
 
-        # --- BIÇAK İZİ ARAMA STRATEJİSİ ---
+        # --- ARAMA HİYERARŞİSİ ---
+        # 1. Orijinal Kural
+        bicak_izleri = [p for p in paths if p.get("width") is not None and abs(p["width"] - hedef_kalinlik) <= 0.1 and p["rect"].y1 < (page_height / 2)]
 
-        # 1. Adım: Üst Yarı + 2.83 mm
-        bicak_izleri = [
-            p for p in paths
-            if p.get("width") is not None
-            and abs(p["width"] - hedef_kalinlik) <= 0.1
-            and p["rect"].y1 < (page_height / 2)
-        ]
-
-        # 2. Adım: Tüm Sayfa + 2.83 mm
+        # 2. Tüm Sayfa 2.83
         if not bicak_izleri:
-            bicak_izleri = [
-                p for p in paths
-                if p.get("width") is not None
-                and abs(p["width"] - hedef_kalinlik) <= 0.1
-            ]
+            bicak_izleri = [p for p in paths if p.get("width") is not None and abs(p["width"] - hedef_kalinlik) <= 0.1]
 
-        # 3. Adım: YENİ MANTIK - Tüm Sayfada 0.50 mm - 0.60 mm arası çizgiler
+        # 3. SENİN İSTEDİĞİN MANTIK: 0.50mm - 0.60mm arası çizgiler
         if not bicak_izleri:
-            bicak_izleri = [
-                p for p in paths
-                if p.get("width") is not None
-                and 1 <= p["width"] <= 5
-            ]
+            # 0.50mm yaklaşık 1.41 point, 0.60mm yaklaşık 1.70 pointtir.
+            bicak_izleri = [p for p in paths if p.get("width") is not None and 1.3 <= p["width"] <= 1.8]
 
-        # 4. Adım: DERİN ARAMA - Rakamları eleyerek en büyük alanı bul
+        # 4. Derin Arama (Son Çare)
         if not bicak_izleri:
-            # Sayıları elemek için en az 50 birim genişlik/yükseklik şartı
-            bicak_izleri = [
-                p for p in paths
-                if p["rect"].width > 50 or p["rect"].height > 50
-            ]
+            bicak_izleri = [p for p in paths if p["rect"].width > 50 or p["rect"].height > 50]
 
         if not bicak_izleri:
-            raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi.name}")
+            raise ValueError(f"Bıçak izi bulunamadı.")
 
-        # Bounding Box ve Margin Ayarı (Margin yok dediğin için +1 tolerans)
+        # Bounding Box
         try:
             union_rect = fitz.Rect(bicak_izleri[0]["rect"])
-            for p in bicak_izleri[1:]:
-                union_rect |= p["rect"]
+            for p in bicak_izleri[1:]: union_rect |= p["rect"]
             final_rect = union_rect
         except:
             final_rect = src_page.rect
 
         new_doc = fitz.open()
         try:
-            # Kenarlardaki çizgilerin kesilmemesi için sayfayı 2 birim genişletiyoruz
             new_page = new_doc.new_page(width=final_rect.width + 2, height=final_rect.height + 2)
             offset = final_rect.tl - fitz.Point(1, 1)
 
@@ -104,46 +85,54 @@ def process_pdf(
                         all_lines.append(LineString([(a.x, a.y), (b.x, b.y)]))
                     elif item[0] == "c":
                         p0, p1, p2, p3 = [v - offset for v in item[1:5]]
-                        pts = bezier_points(p0, p1, p2, p3, n=int(bezier_adim))
-                        all_lines.append(LineString(pts))
+                        all_lines.append(LineString(bezier_points(p0, p1, p2, p3, n=int(bezier_adim))))
 
             merged = unary_union(all_lines)
-            polys = list(polygonize(merged))
 
-            # Geometri Kurtarma (Çizgiler tam birleşmiyorsa)
+            # --- YENİ GEOMETRİ MANTIĞI: TÜM POLİGONLARI TARAMA ---
+            # Sadece en büyüğü değil, tüm kapalı alanları (üçgenler dahil) buluyoruz.
+            # Uçları açık çizgileri birleştirmek için buffer uyguluyoruz.
+            refined_geom = merged.buffer(1.5).buffer(-1.4)
+
+            polys = []
+            if refined_geom.geom_type == 'Polygon':
+                polys = [refined_geom]
+            elif refined_geom.geom_type == 'MultiPolygon':
+                polys = list(refined_geom.geoms)
+            elif hasattr(refined_geom, 'geoms'): # GeometryCollection durumu
+                polys = [g for g in refined_geom.geoms if g.geom_type == 'Polygon']
+
             if not polys:
-                refined = merged.buffer(1.2).buffer(-1.1)
-                if refined.geom_type == 'Polygon':
-                    polys = [refined]
-                elif hasattr(refined, 'geoms'):
-                    polys = [g for g in refined.geoms if g.geom_type == 'Polygon']
+                # Poligon oluşmadıysa polygonize dene
+                polys = list(polygonize(merged))
 
             if not polys:
-                # Hiç poligon oluşmazsa mecbur kutu kullanıyoruz
-                poly = box(*merged.bounds)
-            else:
-                # Sayıları elemek için her zaman en büyük alanı seç
-                poly = max(polys, key=lambda p: p.area)
-                holes = [p for p in polys if p is not poly and p.within(poly)]
-                if holes:
-                    poly = poly.difference(unary_union(holes))
+                # Hala yoksa mecbur bounding box
+                polys = [box(*merged.bounds)]
 
-            poly = poly.buffer(float(buffer_eps))
+            # Tarama Alanı: Tüm poligonların birleşimi (Dış hat + İç üçgenler)
+            final_poly = unary_union(polys).buffer(float(buffer_eps))
 
-            # Çizim ve Tarama
+            # Çizim (Dış Hatlar)
             shape_outline = new_page.new_shape()
-            shape_hatch = new_page.new_shape()
+            def draw_poly_outline(geom):
+                if geom.geom_type == 'Polygon':
+                    coords = list(geom.exterior.coords)
+                    for i in range(len(coords)-1):
+                        shape_outline.draw_line(fitz.Point(*coords[i]), fitz.Point(*coords[i+1]))
+                    for interior in geom.interiors:
+                        coords = list(interior.coords)
+                        for i in range(len(coords)-1):
+                            shape_outline.draw_line(fitz.Point(*coords[i]), fitz.Point(*coords[i+1]))
+                elif hasattr(geom, 'geoms'):
+                    for g in geom.geoms: draw_poly_outline(g)
 
-            # Dış hat
-            if poly.geom_type == 'Polygon':
-                coords = list(poly.exterior.coords)
-                for i in range(len(coords)-1):
-                    shape_outline.draw_line(fitz.Point(*coords[i]), fitz.Point(*coords[i+1]))
-
+            draw_poly_outline(final_poly)
             shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
             shape_outline.commit()
 
-            # Tarama işlemi
+            # Tarama (Hatching)
+            shape_hatch = new_page.new_shape()
             diag = math.sqrt(new_page.rect.width**2 + new_page.rect.height**2)
             angle_rad = math.radians(angle_deg)
             dx, dy = math.cos(angle_rad), math.sin(angle_rad)
@@ -155,7 +144,7 @@ def process_pdf(
                 line = LineString([(cx - dx * diag, cy - dy * diag), (cx + dx * diag, cy + dy * diag)])
 
                 try:
-                    inter = poly.intersection(line)
+                    inter = final_poly.intersection(line)
                     if inter.is_empty: continue
 
                     def draw_it(geom):
