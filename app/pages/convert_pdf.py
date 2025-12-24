@@ -67,7 +67,7 @@ def process_pdf(
             bicak_izleri = [
                 p for p in paths
                 if p.get("width") is not None
-                and 2.2 <= p["width"] <= 3
+                and 1 <= p["width"] <= 5
             ]
 
         # 4. Adım: DERİN ARAMA - Rakamları eleyerek en büyük alanı bul
