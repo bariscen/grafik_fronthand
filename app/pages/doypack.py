@@ -140,7 +140,7 @@ gusset_options = {
     "D390 230 x 50" : "D390",
     "D387 280 x 68" : "D387",
     "D386 203 x 38" : "D386",
-    
+
 
     "Deneme": "Deneme"
     }
@@ -156,14 +156,14 @@ en_mm =  float(kb[-3])
 
 # kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
 # middle_mm = (2 * kb) * -1
-dikis_kalinlik = st.number_input("Dikiş Kalınlığı (mm)", min_value=0.0, value=5.0, step=1.0)
+dikis_kalinlik = st.number_input("Dikiş Kalınlığı (mm)", min_value=0.0, value=7.5, step=1.0)
 
 st.markdown("---")
 st.subheader("Gelişmiş Ayarlar (opsiyonel)")
 
 with st.expander("Gelişmiş ayarları aç"):
 
-    margin = st.number_input("Margin (mm)", min_value=0.0, value=25.0, step=1.0)
+    margin = 25
     yuvarlama = st.selectbox("Radious Var mı", ["Yok", "Var"])
 
     # -----------------------------------------
@@ -196,6 +196,7 @@ with st.expander("Gelişmiş ayarları aç"):
     ac_kapa = st.selectbox("Çentik Var mı", ["Yok", "Var"])
 
     ac_kapa_yer = 0.0
+    lazer = False
     if ac_kapa == "Var":
         ac_kapa_yer = st.number_input(
             "Çentik Yeri (mm)",
@@ -203,6 +204,7 @@ with st.expander("Gelişmiş ayarları aç"):
             value=20.0,
             step=1.0,
         )
+        lazer = st.selectbox("Lazer Var mı", ["Yok", "Var"])
 
     # -----------------------------------------
     # ⭐ ZIPPER AYARLARI
@@ -305,6 +307,7 @@ if st.button("Bıçağı Oluştur"):
         # Aç-kapa
         "ac_kapa": ac_kapa == "Var",
         "ac_kapa_yer": ac_kapa_yer,
+        "lazer": lazer == "Var",
 
         # Zipper
         "zipper": zipper == "Var",
