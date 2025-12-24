@@ -31,19 +31,13 @@ def process_pdf(
     yon: int = 1,
     output_dir: Optional[Union[str, Path]] = None,
 ) -> Path:
-    """
-    yon: 1 veya -1 (tarama yönünü terslemek için)
-    output_dir: çıktıların kaydedileceği klasör (None ise input ile aynı klasör)
-    """
     dosya_adi = Path(dosya_adi)
     if not dosya_adi.exists():
         raise FileNotFoundError(f"PDF bulunamadı: {dosya_adi}")
     if dosya_adi.suffix.lower() != ".pdf":
         raise ValueError(f"PDF değil: {dosya_adi}")
 
-    angle_deg = float(tarama_acisi_derece)  # yon sadece isimlendirme için
-
-
+    angle_deg = float(tarama_acisi_derece)
     base = dosya_adi.stem
     out_dir = Path(output_dir) if output_dir else dosya_adi.parent
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -69,7 +63,6 @@ def process_pdf(
         if not bicak_izleri:
             raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi}")
 
-        # union rect (MARGIN=0)
         union_rect = bicak_izleri[0]["rect"]
         for p in bicak_izleri[1:]:
             union_rect |= p["rect"]
@@ -81,7 +74,7 @@ def process_pdf(
             new_page = new_doc.new_page(width=final_rect.width, height=final_rect.height)
             offset = final_rect.tl
 
-            # 3) Konturu çiz (siyah kalın)
+            # 3) Konturu çiz (Görsel referans)
             shape_outline = new_page.new_shape()
             for p in bicak_izleri:
                 for item in p["items"]:
@@ -98,7 +91,7 @@ def process_pdf(
             shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
             shape_outline.commit()
 
-            # 4) Konturu poligonlara çevir
+            # 4) Konturu poligonlara çevir (HATA ÖNLEYİCİ MANTIK BURADA)
             all_lines = []
             for p in bicak_izleri:
                 for item in p["items"]:
@@ -116,8 +109,19 @@ def process_pdf(
 
             merged = unary_union(all_lines)
             polys = list(polygonize(merged))
+
+            # --- B PLANI: Eğer poligon oluşmazsa (açık uçlu çizimler için) ---
             if not polys:
-                raise ValueError(f"Polygonize başarısız: {dosya_adi}")
+                # Çizgileri 0.2 birim şişirip geri çekerek mikro boşlukları kapatıyoruz
+                refined_zone = merged.buffer(0.2).buffer(-0.2)
+                if refined_zone.geom_type == 'Polygon':
+                    polys = [refined_zone]
+                elif hasattr(refined_zone, 'geoms'):
+                    polys = [g for g in refined_zone.geoms if g.geom_type == 'Polygon']
+            # ---------------------------------------------------------------
+
+            if not polys:
+                raise ValueError(f"Polygonize başarısız (Geometri kapatılamadı): {dosya_adi}")
 
             # DELİKLERİ çıkar
             outer = max(polys, key=lambda p: p.area)
@@ -132,54 +136,40 @@ def process_pdf(
             diag = math.sqrt(w * w + h * h)
 
             angle_rad = math.radians(angle_deg)
-            dx = math.cos(angle_rad)
-            dy = math.sin(angle_rad)
-
+            dx, dy = math.cos(angle_rad), math.sin(angle_rad)
             L = diag * 2
-            nx = -dy
-            ny = dx
+            nx, ny = -dy, dx
 
             step = int(tarama_araligi)
             for i in range(-int(diag), int(diag), step):
-                cx = nx * i + w / 2
-                cy = ny * i + h / 2
-
-                p1 = (cx - dx * L, cy - dy * L)
-                p2 = (cx + dx * L, cy + dy * L)
+                cx, cy = nx * i + w / 2, ny * i + h / 2
+                p1, p2 = (cx - dx * L, cy - dy * L), (cx + dx * L, cy + dy * L)
                 line = LineString([p1, p2])
 
                 inter = poly.intersection(line)
-                if inter.is_empty:
-                    continue
+                if inter.is_empty: continue
 
                 def draw_linestring(ls: LineString):
                     coords = list(ls.coords)
                     if len(coords) >= 2:
-                        a = fitz.Point(*coords[0])
-                        b = fitz.Point(*coords[-1])
+                        a, b = fitz.Point(*coords[0]), fitz.Point(*coords[-1])
                         shape_hatch.draw_line(a, b)
 
-                gt = inter.geom_type
-                if gt == "LineString":
+                if inter.geom_type == "LineString":
                     draw_linestring(inter)
-                elif gt == "MultiLineString":
-                    for ls in inter.geoms:
-                        draw_linestring(ls)
-                elif gt == "GeometryCollection":
+                elif inter.geom_type == "MultiLineString":
+                    for ls in inter.geoms: draw_linestring(ls)
+                elif inter.geom_type == "GeometryCollection":
                     for g in inter.geoms:
-                        if g.geom_type == "LineString":
-                            draw_linestring(g)
+                        if g.geom_type == "LineString": draw_linestring(g)
                         elif g.geom_type == "MultiLineString":
-                            for ls in g.geoms:
-                                draw_linestring(ls)
+                            for ls in g.geoms: draw_linestring(ls)
 
             shape_hatch.finish(color=(0, 0, 0), width=0.7)
             shape_hatch.commit()
-
             new_doc.save(str(cikti_adi))
         finally:
             new_doc.close()
-
     finally:
         doc.close()
 
