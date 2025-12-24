@@ -45,9 +45,9 @@ def process_pdf(
         page_width = src_page.rect.width
         paths = src_page.get_drawings()
 
-        # --- BIÇAK İZİ SEÇİM MANTIĞI ---
+        # --- GÜÇLENDİRİLMİŞ BIÇAK SEÇİMİ ---
 
-        # 1. Aşama: Orijinal senin kuralın (2.83 + Üst Yarı)
+        # 1. Aşama: 2.83 kalınlık ve Üst Yarı (Senin kuralın)
         bicak_izleri = [
             p for p in paths
             if p.get("width") is not None
@@ -55,7 +55,7 @@ def process_pdf(
             and p["rect"].y1 < (page_height / 2)
         ]
 
-        # 2. Aşama: Senin kuralın (Tüm Sayfa)
+        # 2. Aşama: Eğer bulamazsa, sayfadaki tüm 2.83'lükleri al
         if not bicak_izleri:
             bicak_izleri = [
                 p for p in paths
@@ -63,82 +63,86 @@ def process_pdf(
                 and abs(p["width"] - hedef_kalinlik) <= 0.1
             ]
 
-        # 3. Aşama: GEOMETRİK ANALİZ (Rakamları Eleyip Bıçağı Bulma)
+        # 3. Aşama: Sayfa genelinde bıçak izi olabilecek tüm "büyük" çizimleri topla
+        # Sayıları elemek için en az 50 birim genişlik/yükseklik şartı
         if not bicak_izleri:
-            adaylar = []
-            for p in paths:
-                r = p["rect"]
-                # Sayıları elemek için: Rakamlar genelde dardır veya çok küçüktür.
-                # Bıçak izi ise sayfanın en az %30'u kadar genişlik kaplamalıdır.
-                if r.width > (page_width * 0.3) or r.height > (page_height * 0.3):
-                    # İçinde çizgi veya eğri olanları al
-                    if any(item[0] in ("l", "c") for item in p.get("items", [])):
-                        adaylar.append(p)
-
-            if adaylar:
-                # En geniş alanı kaplayan çizim muhtemelen bıçak izidir
-                bicak_izleri = [max(adaylar, key=lambda p: p["rect"].width * p["rect"].height)]
-
-        # 4. Aşama: Son Çare (En çok parçalı büyük obje)
-        if not bicak_izleri:
-            buyuk_objeler = [p for p in paths if p["rect"].width > 100]
-            if buyuk_objeler:
-                bicak_izleri = [max(buyuk_objeler, key=lambda p: len(p.get("items", [])))]
+            bicak_izleri = [
+                p for p in paths
+                if p["rect"].width > 50 or p["rect"].height > 50
+            ]
 
         if not bicak_izleri:
-            raise ValueError(f"Bıçak izi tespit edilemedi. Lütfen PDF içeriğini kontrol edin.")
+            # Hiç büyük çizim yoksa her şeyi al (son çare)
+            bicak_izleri = paths
 
-        # Margin neredeyse yok dediğin için alanı genişletmiyoruz
-        final_rect = fitz.Rect(bicak_izleri[0]["rect"])
-        for p in bicak_izleri[1:]:
-            final_rect |= p["rect"]
+        if not bicak_izleri:
+            raise ValueError(f"Bıçak izi bulunamadı: {dosya_adi.name}")
+
+        # Alan Belirleme (Bounding Box)
+        try:
+            union_rect = fitz.Rect(bicak_izleri[0]["rect"])
+            for p in bicak_izleri[1:]:
+                union_rect |= p["rect"]
+            final_rect = union_rect
+        except:
+            final_rect = src_page.rect
 
         new_doc = fitz.open()
         try:
-            # Margin yoksa çok az (1-2 px) pay bırakmak Shapely'nin hata yapmasını önler
+            # Margin yoksa koordinat kaymasını önlemek için 1 birim pay
             new_page = new_doc.new_page(width=final_rect.width + 2, height=final_rect.height + 2)
             offset = final_rect.tl - fitz.Point(1, 1)
 
             all_lines = []
-            shape_outline = new_page.new_shape()
             for p in bicak_izleri:
                 for item in p["items"]:
                     if item[0] == "l":
                         a, b = item[1] - offset, item[2] - offset
-                        shape_outline.draw_line(a, b)
                         all_lines.append(LineString([(a.x, a.y), (b.x, b.y)]))
                     elif item[0] == "c":
                         p0, p1, p2, p3 = [v - offset for v in item[1:5]]
-                        shape_outline.draw_bezier(p0, p1, p2, p3)
                         pts = bezier_points(p0, p1, p2, p3, n=int(bezier_adim))
                         all_lines.append(LineString(pts))
 
-            shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
-            shape_outline.commit()
-
-            # Poligonlaştırma ve Tarama
+            # Tüm çizgileri birleştir ve poligon oluştur
             merged = unary_union(all_lines)
             polys = list(polygonize(merged))
 
+            # --- RAKAMLARI ELEME VE GEOMETRİ KURTARMA ---
             if not polys:
-                # Görsellerdeki ince çizgileri birleştirmek için daha agresif buffer
-                refined = merged.buffer(1.5).buffer(-1.4)
+                # Çizgiler uç uca değmiyorsa şişir (rakamları değil bıçağı birleştirir)
+                refined = merged.buffer(1.2).buffer(-1.1)
                 if refined.geom_type == 'Polygon':
                     polys = [refined]
                 elif hasattr(refined, 'geoms'):
                     polys = [g for g in refined.geoms if g.geom_type == 'Polygon']
 
             if not polys:
-                # Hiç poligon oluşmazsa bounding box'ı kullan (B planı)
-                polys = [box(*merged.bounds)]
+                raise ValueError("Bıçak izi kapalı bir alan oluşturmuyor.")
 
-            outer = max(polys, key=lambda p: p.area)
-            poly = outer.buffer(float(buffer_eps))
+            # EN ÖNEMLİ KISIM: Sayfadaki en büyük alanı seç (Bu her zaman bıçak izidir, rakamlar küçüktür)
+            poly = max(polys, key=lambda p: p.area)
 
-            # Hatching (Tarama)
+            # İç delikler varsa (U profilin içi gibi) onları çıkar
+            holes = [p for p in polys if p is not poly and p.within(poly)]
+            if holes:
+                poly = poly.difference(unary_union(holes))
+
+            poly = poly.buffer(float(buffer_eps))
+
+            # Dış hat çizimi
+            shape_outline = new_page.new_shape()
+            if poly.geom_type == 'Polygon':
+                coords = list(poly.exterior.coords)
+                for i in range(len(coords)-1):
+                    shape_outline.draw_line(fitz.Point(*coords[i]), fitz.Point(*coords[i+1]))
+            shape_outline.finish(color=(0, 0, 0), width=hedef_kalinlik)
+            shape_outline.commit()
+
+            # Tarama (Hatching)
             shape_hatch = new_page.new_shape()
             diag = math.sqrt(new_page.rect.width**2 + new_page.rect.height**2)
-            angle_rad = math.radians(angle_deg)
+            angle_rad = math.radians(float(tarama_acisi_derece))
             dx, dy = math.cos(angle_rad), math.sin(angle_rad)
             nx, ny = -dy, dx
 
@@ -146,18 +150,21 @@ def process_pdf(
             for i in range(-int(diag), int(diag), step):
                 cx, cy = nx * i + new_page.rect.width/2, ny * i + new_page.rect.height/2
                 line = LineString([(cx - dx * diag, cy - dy * diag), (cx + dx * diag, cy + dy * diag)])
-                inter = poly.intersection(line)
 
-                if inter.is_empty: continue
+                try:
+                    inter = poly.intersection(line)
+                    if inter.is_empty: continue
 
-                def draw_it(geom):
-                    if geom.geom_type == "LineString":
-                        coords = list(geom.coords)
-                        shape_hatch.draw_line(fitz.Point(*coords[0]), fitz.Point(*coords[-1]))
-                    elif hasattr(geom, 'geoms'):
-                        for g in geom.geoms: draw_it(g)
+                    def draw_it(geom):
+                        if geom.geom_type == "LineString":
+                            pts = list(geom.coords)
+                            shape_hatch.draw_line(fitz.Point(*pts[0]), fitz.Point(*pts[-1]))
+                        elif hasattr(geom, 'geoms'):
+                            for g in geom.geoms: draw_it(g)
 
-                draw_it(inter)
+                    draw_it(inter)
+                except:
+                    continue
 
             shape_hatch.finish(color=(0, 0, 0), width=0.7)
             shape_hatch.commit()
