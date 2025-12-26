@@ -499,9 +499,8 @@ gusset_options = {
     "260 x 50 D413" : "D413",
     "350 x 50 D414" : "D414",
     "143 x 30 D415" : "D415",
-    "217 x 45 D416" : "D416",
-
-    "Deneme": "Deneme"
+    "217 x 45 D416" : "D416"
+    
     }
 gusset_label = st.selectbox(
     "Kalıp Bıçağı",
@@ -510,8 +509,8 @@ gusset_label = st.selectbox(
 gusset_base_name = gusset_options[gusset_label]
 
 kb = gusset_label.split()
-birlesim = float(kb[-1])
-en_mm =  float(kb[-3])
+birlesim = float(kb[-2])
+en_mm =  float(kb[-4])
 
 # kb = st.number_input("Kalıp Birleşimi", min_value=0.0, value=5.0, step=1.0)
 # middle_mm = (2 * kb) * -1
