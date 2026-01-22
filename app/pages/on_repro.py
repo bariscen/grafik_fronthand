@@ -3,7 +3,7 @@ import fitz
 import pandas as pd
 import requests
 import json
-from app.gcs import upload_pdf_to_gcs
+from gcs import upload_pdf_to_gcs
 
 # =========================
 # CONFIG
