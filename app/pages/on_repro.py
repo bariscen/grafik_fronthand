@@ -176,7 +176,7 @@ with right:
         with st.spinner("PDF analiz ediliyor..."):
             try:
                 payload = api_analyze(
-                    gcs_uri=st.session_state["gcs_uri"],
+                    gcs_uri=st.session_state.get("gcs_uri", ""),
                     page_index=int(page_index),
                     exp_w=float(exp_w),
                     exp_h=float(exp_h),
@@ -186,6 +186,7 @@ with right:
                     width_max=float(width_max),
                     quant=int(quant),
                 )
+
 
             except Exception as e:
                 st.session_state["analysis_running"] = False
