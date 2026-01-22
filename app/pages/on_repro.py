@@ -96,9 +96,12 @@ def api_analyze(
     width_max: float,
     quant: int,
 ):
+    if not gcs_uri:
+        raise RuntimeError("api_analyze çağrıldı ama gcs_uri boş")
+
     data = {
         "mode": "analyze",
-        "gcs_uri": gcs_uri,
+        "gcs_uri": gcs_uri,           # 👈 EVET, TAM BURASI
         "page_index": str(int(page_index)),
         "exp_w": str(float(exp_w)),
         "exp_h": str(float(exp_h)),
@@ -116,6 +119,7 @@ def api_analyze(
     )
     r.raise_for_status()
     return r.json()
+
 
 
 def api_build_pdf(
