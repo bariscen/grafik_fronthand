@@ -3,6 +3,7 @@ import fitz
 import pandas as pd
 import requests
 import json
+from gcs import upload_pdf_to_gcs
 
 # =========================
 # CONFIG
@@ -21,15 +22,32 @@ if not uploaded:
     st.stop()
 
 pdf_key = f"{uploaded.name}_{uploaded.size}"
+
+# 1) PDF bytes'ı bir kere al
 if st.session_state.get("pdf_key") != pdf_key:
     st.session_state["pdf_key"] = pdf_key
     st.session_state["pdf_bytes"] = uploaded.read()
 
-    # sonuçları temizle
+    # yeni PDF geldi -> eski analiz çıktıları temizlenir
     for k in ["analysis_payload", "df", "meta", "report", "pdf_labeled"]:
         st.session_state.pop(k, None)
 
 pdf_bytes = st.session_state["pdf_bytes"]
+
+# 2) GCS'ye sadece PDF değişince upload et
+if st.session_state.get("last_uploaded_to_gcs") != pdf_key:
+    try:
+        import io
+        gcs_uri = upload_pdf_to_gcs(io.BytesIO(pdf_bytes), "sesa-grafik-bucket")
+        st.session_state["last_uploaded_to_gcs"] = pdf_key
+        st.session_state["gcs_uri"] = gcs_uri
+        st.success("PDF güncellendi (overwrite edildi) ✅")
+        st.write(gcs_uri)
+    except Exception as e:
+        st.error(f"GCS yükleme hatası: {e}")
+        st.stop()  # istersen kaldır
+else:
+    st.caption("GCS: bu dosya zaten yüklü.")
 
 # =========================
 # State init
@@ -67,8 +85,8 @@ with left:
 # =========================
 # API helpers
 # =========================
-def api_analyze(
-    pdf_bytes: bytes,
+def api_analyze_gcs(
+    gcs_uri: str,
     page_index: int,
     exp_w: float,
     exp_h: float,
@@ -78,27 +96,27 @@ def api_analyze(
     width_max: float,
     quant: int,
 ):
-    files = {"file": ("upload.pdf", pdf_bytes, "application/pdf")}
     data = {
-        "mode": "analyze",  # ✅ KRİTİK
-        "page_index": str(int(page_index)),
-        "exp_w": str(float(exp_w)),
-        "exp_h": str(float(exp_h)),
-        "min_w": str(float(min_w)),
-        "min_h": str(float(min_h)),
+        "mode": "analyze",
+        "gcs_uri": gcs_uri,          # 👈 KRİTİK
+        "page_index": str(page_index),
+        "exp_w": str(exp_w),
+        "exp_h": str(exp_h),
+        "min_w": str(min_w),
+        "min_h": str(min_h),
         "only_no_fill": "1" if only_no_fill else "0",
-        "width_max": str(float(width_max)),
-        "quant": str(int(quant)),
+        "width_max": str(width_max),
+        "quant": str(quant),
     }
 
     r = requests.post(
         f"{BACKEND_URL.rstrip('/')}/on_repro",
-        files=files,
         data=data,
         timeout=300,
     )
     r.raise_for_status()
     return r.json()
+
 
 def api_build_pdf(
     pdf_bytes: bytes,
@@ -153,17 +171,18 @@ with right:
 
         with st.spinner("PDF analiz ediliyor..."):
             try:
-                payload = api_analyze(
-                    pdf_bytes=pdf_bytes,
-                    page_index=int(page_index),
-                    exp_w=float(exp_w),
-                    exp_h=float(exp_h),
-                    min_w=float(min_w),
-                    min_h=float(min_h),
-                    only_no_fill=bool(only_no_fill),
-                    width_max=float(width_max),
-                    quant=int(quant),
+                payload = api_analyze_gcs(
+                    gcs_uri=gcs_uri,
+                    page_index=page_index,
+                    exp_w=exp_w,
+                    exp_h=exp_h,
+                    min_w=min_w,
+                    min_h=min_h,
+                    only_no_fill=only_no_fill,
+                    width_max=width_max,
+                    quant=quant,
                 )
+
             except Exception as e:
                 st.session_state["analysis_running"] = False
                 st.error(f"API analiz hatası: {e}")
