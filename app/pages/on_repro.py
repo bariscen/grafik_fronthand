@@ -85,7 +85,7 @@ with left:
 # =========================
 # API helpers
 # =========================
-def api_analyze_gcs(
+def api_analyze(
     gcs_uri: str,
     page_index: int,
     exp_w: float,
@@ -98,15 +98,15 @@ def api_analyze_gcs(
 ):
     data = {
         "mode": "analyze",
-        "gcs_uri": gcs_uri,          # 👈 KRİTİK
-        "page_index": str(page_index),
-        "exp_w": str(exp_w),
-        "exp_h": str(exp_h),
-        "min_w": str(min_w),
-        "min_h": str(min_h),
+        "gcs_uri": gcs_uri,
+        "page_index": str(int(page_index)),
+        "exp_w": str(float(exp_w)),
+        "exp_h": str(float(exp_h)),
+        "min_w": str(float(min_w)),
+        "min_h": str(float(min_h)),
         "only_no_fill": "1" if only_no_fill else "0",
-        "width_max": str(width_max),
-        "quant": str(quant),
+        "width_max": str(float(width_max)),
+        "quant": str(int(quant)),
     }
 
     r = requests.post(
@@ -171,16 +171,16 @@ with right:
 
         with st.spinner("PDF analiz ediliyor..."):
             try:
-                payload = api_analyze_gcs(
-                    gcs_uri=gcs_uri,
-                    page_index=page_index,
-                    exp_w=exp_w,
-                    exp_h=exp_h,
-                    min_w=min_w,
-                    min_h=min_h,
-                    only_no_fill=only_no_fill,
-                    width_max=width_max,
-                    quant=quant,
+                payload = api_analyze(
+                    gcs_uri=st.session_state["gcs_uri"],
+                    page_index=int(page_index),
+                    exp_w=float(exp_w),
+                    exp_h=float(exp_h),
+                    min_w=float(min_w),
+                    min_h=float(min_h),
+                    only_no_fill=bool(only_no_fill),
+                    width_max=float(width_max),
+                    quant=int(quant),
                 )
 
             except Exception as e:
