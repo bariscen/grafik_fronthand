@@ -101,7 +101,7 @@ def api_analyze(
 
     data = {
         "mode": "analyze",
-        "gcs_uri": gcs_uri,           # 👈 EVET, TAM BURASI
+        "gcs_uri": gcs_uri,
         "page_index": str(int(page_index)),
         "exp_w": str(float(exp_w)),
         "exp_h": str(float(exp_h)),
@@ -112,27 +112,31 @@ def api_analyze(
         "quant": str(int(quant)),
     }
 
-    r = requests.post(
-        f"{BACKEND_URL.rstrip('/')}/on_repro",
-        data=data,
-        timeout=300,
-    )
+    url = f"{BACKEND_URL.rstrip('/')}/on_repro"
+    st.write("DEBUG URL:", url)
+    st.write("DEBUG data keys:", list(data.keys()))
+
+    r = requests.post(url, data=data, timeout=300)
     r.raise_for_status()
     return r.json()
 
 
 
+
 def api_build_pdf(
-    pdf_bytes: bytes,
+    gcs_uri: str,
     page_index: int,
     bbox_pt: list[float],
     quant: int,
     target_stroke: tuple[float, float, float] | None,
     target_width: float | None,
 ):
-    files = {"file": ("upload.pdf", pdf_bytes, "application/pdf")}
+    if not gcs_uri:
+        raise RuntimeError("api_build_pdf çağrıldı ama gcs_uri boş")
+
     data = {
-        "mode": "build_pdf",  # ✅ KRİTİK
+        "mode": "build_pdf",
+        "gcs_uri": gcs_uri,  # 👈 KRİTİK (artık PDF upload yok)
         "page_index": str(int(page_index)),
         "bbox_pt": ",".join([str(float(x)) for x in bbox_pt]),
         "quant": str(int(quant)),
@@ -142,14 +146,10 @@ def api_build_pdf(
     if target_width is not None:
         data["target_width"] = str(float(target_width))
 
-    r = requests.post(
-        f"{BACKEND_URL.rstrip('/')}/on_repro",
-        files=files,
-        data=data,
-        timeout=300,
-    )
+    url = f"{BACKEND_URL.rstrip('/')}/on_repro"
+    r = requests.post(url, data=data, timeout=300)
 
-    # ✅ Eğer backend JSON hata döndürürse (bazı durumlarda), burada yakalayalım
+    # Backend JSON hata döndürürse yakala
     ct = (r.headers.get("content-type") or "").lower()
     if "application/json" in ct:
         try:
@@ -160,6 +160,7 @@ def api_build_pdf(
 
     r.raise_for_status()
     return r.content
+
 
 # =========================
 # RIGHT PANEL
@@ -405,13 +406,14 @@ with right:
                 target_width = float(row["width_pt"]) if row.get("width_pt") is not None else None
 
                 pdf_out = api_build_pdf(
-                    pdf_bytes=pdf_bytes,
+                    gcs_uri=st.session_state["gcs_uri"],  # 👈 burası
                     page_index=int(page_index),
                     bbox_pt=[bbox.x0, bbox.y0, bbox.x1, bbox.y1],
                     quant=int(quant),
                     target_stroke=target_stroke,
                     target_width=target_width,
                 )
+
                 st.session_state["pdf_labeled"] = pdf_out
                 st.success("PDF üretildi.")
             except Exception as e:
