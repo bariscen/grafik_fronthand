@@ -12,3 +12,4 @@ requests
 PyMuPDF
 shapely
 google-cloud-storage>=2.10,<3.0
+opencv-python-headless
