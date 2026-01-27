@@ -109,7 +109,7 @@ with col2:
 
 with col3:
     if st.button("💫"):
-        st.switch_page("pages/m_kod.py")
+        st.switch_page("pages/new_on_repo.py")
 
 
 
