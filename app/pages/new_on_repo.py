@@ -3,18 +3,19 @@ import fitz
 import numpy as np
 import cv2
 import io
+import requests  # <--- YÜKLENMESİ GEREKEN KÜTÜPHANE
 from gcs import upload_pdf_to_gcs
+
+# Backend URL'iniz (Cloud Run adresi)
+BACKEND_URL = "https://sesa-grafik-api-1003931228830.europe-southwest1.run.app/on_repro"
 
 # ==========================================
 # 1. ANALİZİ HAFIZAYA AL (Donmayı Önleyen Kısım)
 # ==========================================
 @st.cache_resource(show_spinner="Sayfalar taranıyor, lütfen bekleyin...")
 def get_all_pdf_boxes(pdf_bytes):
-    """PDF'i bir kez analiz eder ve tüm kutuları hafızada tutar."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     all_boxes = {}
-
-    # Sabit Filtreler
     MIN_AREA, MIN_W, MIN_H, MIN_SOLIDITY = 8000, 200, 200, 0.6
 
     for pg_idx in range(len(doc)):
@@ -22,7 +23,6 @@ def get_all_pdf_boxes(pdf_bytes):
         pix = page.get_pixmap(dpi=120, alpha=True)
         img_data = np.frombuffer(pix.tobytes("png"), np.uint8)
         img = cv2.imdecode(img_data, cv2.IMREAD_UNCHANGED)
-
         if img is None: continue
 
         alpha = img[:, :, 3]
@@ -34,7 +34,6 @@ def get_all_pdf_boxes(pdf_bytes):
         bboxes = []
         scale = 72 / 120
         page_rect = page.rect
-
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
             rect = fitz.Rect(x * scale, y * scale, (x + w) * scale, (y + h) * scale)
@@ -44,7 +43,6 @@ def get_all_pdf_boxes(pdf_bytes):
             if (rect.width * rect.height) > MIN_AREA and rect.width > MIN_W and rect.height > MIN_H:
                 if solidity > MIN_SOLIDITY:
                     bboxes.append(rect)
-
         bboxes.sort(key=lambda r: (r.y0, r.x0))
         all_boxes[pg_idx] = bboxes
     return all_boxes
@@ -52,73 +50,99 @@ def get_all_pdf_boxes(pdf_bytes):
 # ==========================================
 # 2. UI & SEÇİM ALANI
 # ==========================================
-st.set_page_config(page_title="Hızlı Seçici", layout="wide")
-st.title("🛡️ Performans Odaklı Ambalaj Seçici")
+st.set_page_config(page_title="Pro Repro Seçici", layout="wide")
+st.title("🛡️ Ambalaj Seçici & Backend Analizi")
 
 uploaded = st.file_uploader("PDF yükle", type=["pdf"])
 
 if uploaded:
     pdf_bytes = uploaded.getvalue()
 
-    # PDF analizini bir kez yap ve cache'le
-    with st.spinner("PDF derinlemesine analiz ediliyor..."):
-        all_boxes_map = get_all_pdf_boxes(pdf_bytes)
+    # 1. Adım: Orijinal PDF'i GCS'ye yükle (Backend'in okuyabilmesi için)
+    if "gcs_uri" not in st.session_state or st.session_state.get("last_pdf") != uploaded.name:
+        with st.spinner("Dosya GCS'ye aktarılıyor..."):
+            gcs_uri = upload_pdf_to_gcs(io.BytesIO(pdf_bytes), "sesa-grafik-bucket")
+            st.session_state["gcs_uri"] = gcs_uri
+            st.session_state["last_pdf"] = uploaded.name
 
+    all_boxes_map = get_all_pdf_boxes(pdf_bytes)
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-    # Seçimleri saklamak için session_state
-    if "selected_keys" not in st.session_state:
-        st.session_state["selected_keys"] = set()
-
-    # --- SEÇİM FORMU (Loading dönmesini engeller) ---
     with st.form("selection_form"):
-        st.info("Parçaları seçin ve en alttaki 'Seçimleri Onayla ve İşle' butonuna basın.")
+        st.info("Analiz edilecek parçaları seçin.")
+
+        # Seçilenlerin koordinatlarını tutacak liste
+        selected_boxes_data = []
 
         for pg_idx, boxes in all_boxes_map.items():
             if not boxes: continue
-
             st.markdown(f"### 📄 Sayfa {pg_idx + 1}")
             cols = st.columns(2)
-
             for i, box in enumerate(boxes):
                 with cols[i % 2]:
-                    # Önizleme
                     pix_crop = doc[pg_idx].get_pixmap(matrix=fitz.Matrix(0.3, 0.3), clip=box)
                     st.image(pix_crop.tobytes("png"))
 
                     cb_key = f"{pg_idx}_{i}"
-                    is_selected = st.checkbox(f"Seç: P{pg_idx+1}-I{i}", key=f"check_{cb_key}")
-                    if is_selected:
-                        st.session_state["selected_keys"].add(cb_key)
-                    else:
-                        st.session_state["selected_keys"].discard(cb_key)
+                    if st.checkbox(f"Seç: Sayfa {pg_idx+1}-ID {i}", key=f"check_{cb_key}"):
+                        # Koordinatları ve sayfa bilgisini listeye ekle
+                        selected_boxes_data.append({"pg": pg_idx, "box": box})
             st.divider()
 
-        submit_button = st.form_submit_button("🚀 Seçimleri Onayla ve GCS'ye Gönder", use_container_width=True)
+        submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
     # ==========================================
-    # 3. İŞLEME (Sadece Butona Basınca Çalışır)
+    # 3. BACKEND HABERLEŞMESİ (Burada Koordinatlar Gidiyor)
     # ==========================================
     if submit_button:
-        if not st.session_state["selected_keys"]:
-            st.warning("Hiç parça seçilmedi.")
+        if not selected_boxes_data:
+            st.warning("Lütfen en az bir parça seçin.")
         else:
-            with st.spinner("Vektörel PDF üretiliyor..."):
-                output_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            with st.spinner("Backend analiz yapıyor, lütfen bekleyin..."):
+                # Backend'den dönecek PDF'i tutmak için başlangıçta boş bir bytes
+                final_pdf_content = None
 
-                for key in st.session_state["selected_keys"]:
-                    p_idx, b_idx = map(int, key.split("_"))
-                    target_box = all_boxes_map[p_idx][b_idx]
-                    output_doc[p_idx].draw_rect(target_box, color=(1, 0, 0), width=2)
+                for item in selected_boxes_data:
+                    p_idx = item["pg"]
+                    rect = item["box"]
 
-                final_bytes = output_doc.write()
+                    # Koordinatları Backend'in beklediği string formatına getiriyoruz
+                    bbox_str = f"{rect.x0},{rect.y0},{rect.x1},{rect.y1}"
 
-                # GCS'ye Yükle
-                try:
-                    gcs_uri = upload_pdf_to_gcs(io.BytesIO(final_bytes), "sesa-grafik-bucket")
-                    st.success(f"GCS Yükleme Başarılı: {gcs_uri}")
-                    st.download_button("📥 İşaretli PDF'i İndir", final_bytes, "isaretli.pdf", use_container_width=True)
-                except Exception as e:
-                    st.error(f"GCS Hatası: {e}")
+                    # Backend'e gönderilecek veri (Senin FastAPI endpoint parametrelerin)
+                    payload = {
+                        "mode": "build_pdf",
+                        "gcs_uri": st.session_state["gcs_uri"],
+                        "page_index": str(p_idx),
+                        "bbox_pt": bbox_str,
+                        "quant": "3",
+                        "target_stroke": "1.0,0.0,0.0", # Kırmızı kutu
+                        "target_width": "2.0"
+                    }
+
+                    try:
+                        response = requests.post(BACKEND_URL, data=payload, timeout=300)
+                        if response.status_code == 200:
+                            # Backend'den gelen StreamingResponse (PDF bytes)
+                            final_pdf_content = response.content
+                        else:
+                            st.error(f"Backend hatası (P{p_idx+1}): {response.text}")
+                    except Exception as e:
+                        st.error(f"İletişim hatası: {e}")
+
+                if final_pdf_content:
+                    st.success("Tüm ambalaj parçaları analiz edildi ve işaretlendi!")
+
+                    # GCS'ye Son Halini Yükle
+                    final_uri = upload_pdf_to_gcs(io.BytesIO(final_pdf_content), "sesa-grafik-bucket")
+                    st.caption(f"Final PDF GCS'ye kaydedildi: {final_uri}")
+
+                    st.download_button(
+                        "📥 Analizli PDF'i İndir",
+                        data=final_pdf_content,
+                        file_name="repro_analiz_sonuc.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
 
     doc.close()
