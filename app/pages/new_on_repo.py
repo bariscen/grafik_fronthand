@@ -40,7 +40,6 @@ def get_all_pdf_boxes(pdf_bytes):
                 continue
 
             solidity = float(cv2.contourArea(cnt)) / (w * h) if (w * h) > 0 else 0
-
             if (rect.width * rect.height) > MIN_AREA and rect.width > MIN_W and rect.height > MIN_H:
                 if solidity > MIN_SOLIDITY:
                     bboxes.append(rect)
@@ -58,18 +57,6 @@ def clear_all_checkbox_states():
             del st.session_state[k]
 
 
-def count_boxes_in_bbox_payload(bbox_pt: str) -> int:
-    """
-    bbox_pt formatı:
-      "x0,y0,x1,y1 | x0,y0,x1,y1 | ..."
-    Bu fonksiyon gerçekten kaç kutu olduğunu sayar.
-    """
-    if not bbox_pt:
-        return 0
-    parts = [p.strip() for p in bbox_pt.split("|") if p.strip()]
-    return len(parts)
-
-
 st.set_page_config(page_title="Pro Repro Seçici", layout="wide")
 st.title("🛡️ Ambalaj Seçici & Backend Analizi")
 
@@ -78,14 +65,15 @@ uploaded = st.file_uploader("PDF yükle", type=["pdf"])
 if uploaded:
     pdf_bytes = uploaded.getvalue()
 
-    # PDF değiştiyse: eski seçimleri temizle
+    # PDF değişince eski seçimler temizlik
     if st.session_state.get("last_pdf") != uploaded.name:
         clear_all_checkbox_states()
 
-    # manuel temizleme
-    if st.button("🧹 Seçimleri temizle"):
-        clear_all_checkbox_states()
-        st.rerun()
+    colA, colB = st.columns([1, 2])
+    with colA:
+        if st.button("🧹 Seçimleri temizle"):
+            clear_all_checkbox_states()
+            st.rerun()
 
     # GCS upload
     if "gcs_uri" not in st.session_state or st.session_state.get("last_pdf") != uploaded.name:
@@ -99,6 +87,7 @@ if uploaded:
     all_boxes_map = get_all_pdf_boxes(pdf_bytes)
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
+    # ---- FORM ----
     with st.form("selection_form"):
         st.info("Analiz edilecek parçaları seçin.")
         selected_boxes_data = []
@@ -116,19 +105,25 @@ if uploaded:
                     st.image(pix_crop.tobytes("png"))
 
                     cb_key = f"{pg_idx}_{i}"
-                    if st.checkbox(f"Seç: Sayfa {pg_idx + 1}-ID {i}", key=f"check_{cb_key}"):
+                    checked = st.checkbox(
+                        f"Seç: Sayfa {pg_idx + 1}-ID {i}",
+                        key=f"check_{cb_key}"
+                    )
+                    if checked:
                         selected_boxes_data.append({"pg": pg_idx, "box": box})
 
             st.divider()
 
+        # ✅ PAYLOAD'I TEK FORMATTA ÜRET (BOŞLUKSUZ)
         backend_payload = None
-        bbox_count = 0
+        bbox_lines = []
 
         if selected_boxes_data:
-            bbox_payload = " | ".join([
+            bbox_lines = [
                 f"{item['box'].x0},{item['box'].y0},{item['box'].x1},{item['box'].y1}"
                 for item in selected_boxes_data
-            ])
+            ]
+            bbox_payload = "|".join(bbox_lines)  # <-- BOŞLUK YOK, delimiter net
 
             backend_payload = {
                 "gcs_uri": st.session_state["gcs_uri"],
@@ -136,30 +131,31 @@ if uploaded:
                 "bbox_pt": bbox_payload,
             }
 
-            # ✅ GERÇEK SAYIM: string split ile kesin sayı
-            bbox_count = count_boxes_in_bbox_payload(backend_payload["bbox_pt"])
-
-        # iki ayrı tuş
         see_payload_btn = st.form_submit_button("👁️ Backend'e gidecek verileri gör")
         submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
-    # ✅ Backend down olsa bile: burada sayıyı görürsün
+    # ---- FORM DIŞI: PAYLOAD GÖSTER ----
     if backend_payload:
-        st.success(f"✅ Şu an backend'e gidecek kutu sayısı: {bbox_count}")
+        st.success(f"✅ Seçili kutu sayısı (Streamlit): {len(bbox_lines)}")
 
     if see_payload_btn:
         if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            st.info("Backend'e gidecek GERÇEK payload:")
-            st.json({**backend_payload, "bbox_sayisi": bbox_count})
+            st.subheader("📨 Backend'e GİDECEK VERİ (Aynen)")
+            st.json({**backend_payload, "bbox_sayisi": len(bbox_lines)})
+            st.subheader("📦 bbox_pt satırları")
+            st.code("\n".join(bbox_lines), language="text")
 
+    # ---- BACKEND GÖNDER ----
     if submit_button:
         if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            # Backend down olabilir; yine de kaç kutu yolladığını zaten görüyorsun.
-            st.info(f"Gönderiliyor... (Kutu sayısı: {bbox_count})")
+            # Göndermeden hemen önce aynısını ekrana bas (debug)
+            st.info(f"Gönderiliyor... (Kutu sayısı: {len(bbox_lines)})")
+            st.json({**backend_payload, "bbox_sayisi": len(bbox_lines)})
+
             try:
                 response = requests.post(BACKEND_URL, data=backend_payload, timeout=300)
                 if response.status_code == 200:
