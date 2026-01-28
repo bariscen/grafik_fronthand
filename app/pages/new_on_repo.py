@@ -8,7 +8,7 @@ from gcs import upload_pdf_to_gcs
 from urllib.parse import urlencode
 
 # Backend URL'iniz (Cloud Run adresi)
-BACKEND_URL = "https://sesa-grafik-api-1003931228830.europe-southwest1.run.app/on_repro"
+BACKEND_URL = "https://sesa-grafik-api-1003931228830.europe-southwest1.run.app/new_on_repo"
 
 # ==========================================
 # 1. ANALİZİ HAFIZAYA AL (Donmayı Önleyen Kısım)
