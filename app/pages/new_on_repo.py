@@ -92,25 +92,30 @@ if uploaded:
         submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
     # ==========================================
-    # 3. BACKEND HABERLEŞMESİ (DÜZELTİLMİŞ & TEK SEFERLİK)
+    # 3. BACKEND HABERLEŞMESİ (FİLTRE VE TEMİZLİK)
     # ==========================================
     if submit_button:
-        # 1. Sadece o an checkbox'ı işaretli olanları topla
-        temiz_secim = []
+        # Sadece o an kutucuğu işaretli olanları topluyoruz
+        kesin_secilenler = []
         target_page = 0
+
         for pg_idx, boxes in all_boxes_map.items():
             for i, box in enumerate(boxes):
-                if st.session_state.get(f"check_{pg_idx}_{i}"):
-                    temiz_secim.append(box)
+                # Checkbox durumunu doğrudan session_state'ten sorgula
+                cb_key = f"check_{pg_idx}_{i}"
+                if st.session_state.get(cb_key):
+                    kesin_secilenler.append(box)
                     target_page = pg_idx
 
-        if not temiz_secim:
-            st.warning("Lütfen en az bir parça seçin.")
-        else:
-            with st.spinner(f"Backend {len(temiz_secim)} parçayı işliyor..."):
+        # DEBUG: Gerçekten kaç tane gidiyor ekranda gör
+        st.write(f"🔍 Backend'e hazırlanan kutu sayısı: {len(kesin_secilenler)}")
 
-                # 2. Koordinatları paketle (Backend'de split("|") yapılacak format)
-                bbox_payload = " | ".join([f"{b.x0},{b.y0},{b.x1},{b.y1}" for b in temiz_secim])
+        if not kesin_secilenler:
+            st.warning("Lütfen analiz için parça seçin.")
+        else:
+            with st.spinner(f"{len(kesin_secilenler)} parça analiz ediliyor..."):
+                # Koordinatları "x,y,x,y | x,y,x,y" formatında birleştir
+                bbox_payload = " | ".join([f"{b.x0},{b.y0},{b.x1},{b.y1}" for b in kesin_secilenler])
 
                 payload = {
                     "gcs_uri": st.session_state["gcs_uri"],
@@ -122,34 +127,22 @@ if uploaded:
                 }
 
                 try:
-                    # 3. Backend'e TEK BİR istek gönder (Tekrar eden bloklar silindi)
                     response = requests.post(BACKEND_URL, data=payload, timeout=300)
 
                     if response.status_code == 200:
-                        final_pdf_content = response.content
-                        st.success(f"✅ {len(temiz_secim)} bölge başarıyla analiz edildi!")
-
-                        # 4. GCS Yedeği (Hata olsa bile indirmeye engel olmasın)
-                        try:
-                            final_uri = upload_pdf_to_gcs(io.BytesIO(final_pdf_content), "sesa-grafik-bucket")
-                            st.caption(f"Bulut Yedeği: {final_uri}")
-                        except:
-                            pass
-
-                        # 5. İNDİRME BUTONU
+                        st.success(f"✅ Başarılı! {len(kesin_secilenler)} parça tek PDF'de toplandı.")
                         st.download_button(
                             label="📥 Analizli PDF'i İndir",
-                            data=final_pdf_content,
-                            file_name=f"analizli_{uploaded.name}",
-                            mime="application/pdf",
-                            use_container_width=True
+                            data=response.content,
+                            file_name=f"analiz_{len(kesin_secilenler)}_parca.pdf",
+                            mime="application/pdf"
                         )
                     else:
-                        # Backend'den gelen hata detayını göster
-                        st.error(f"Backend hatası: {response.text}")
+                        # Hata gelirse içindeki Rect sayısını buradan teyit edebiliriz
+                        st.error(f"Backend Hatası: {response.text}")
 
                 except Exception as e:
-                    st.error(f"Bağlantı hatası: {e}")
+                    st.error(f"Bağlantı kesildi: {e}")
 
     # Belgeyi kapat (Hatanın dışına aldık)
     if 'doc' in locals():
