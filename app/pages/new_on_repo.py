@@ -91,35 +91,27 @@ if uploaded:
 
         submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
-    # ==========================================
-    # 3. BACKEND HABERLEŞMESİ (FİLTRE VE TEMİZLİK)
+   # ==========================================
+    # 3. BACKEND HABERLEŞMESİ (Toplu Gönderim Yapılandırıldı)
     # ==========================================
     if submit_button:
-        # Sadece o an kutucuğu işaretli olanları topluyoruz
-        kesin_secilenler = []
-        target_page = 0
-
-        for pg_idx, boxes in all_boxes_map.items():
-            for i, box in enumerate(boxes):
-                # Checkbox durumunu doğrudan session_state'ten sorgula
-                cb_key = f"check_{pg_idx}_{i}"
-                if st.session_state.get(cb_key):
-                    kesin_secilenler.append(box)
-                    target_page = pg_idx
-
-        # DEBUG: Gerçekten kaç tane gidiyor ekranda gör
-        st.write(f"🔍 Backend'e hazırlanan kutu sayısı: {len(kesin_secilenler)}")
-
-        if not kesin_secilenler:
-            st.warning("Lütfen analiz için parça seçin.")
+        if not selected_boxes_data:
+            st.warning("Lütfen en az bir parça seçin.")
         else:
-            with st.spinner(f"{len(kesin_secilenler)} parça analiz ediliyor..."):
-                # Koordinatları "x,y,x,y | x,y,x,y" formatında birleştir
-                bbox_payload = " | ".join([f"{b.x0},{b.y0},{b.x1},{b.y1}" for b in kesin_secilenler])
+            with st.spinner("Backend tüm parçaları tek bir PDF'de birleştiriyor, lütfen bekleyin..."):
 
+                # 1. Tüm seçilen kutuların koordinatlarını "|" ile ayırarak birleştiriyoruz
+                # Bu sayede Backend döngüye girip hepsini tek PDF üzerine çizebilir.
+                bbox_payload = " | ".join([
+                    f"{item['box'].x0},{item['box'].y0},{item['box'].x1},{item['box'].y1}"
+                    for item in selected_boxes_data
+                ])
+
+                # 2. Backend'e gönderilecek TEK paket
+                # Not: page_index olarak ilk seçilen kutunun sayfasını baz alıyoruz.
                 payload = {
                     "gcs_uri": st.session_state["gcs_uri"],
-                    "page_index": str(target_page),
+                    "page_index": str(selected_boxes_data[0]["pg"]),
                     "bbox_pt": bbox_payload,
                     "quant": "3",
                     "exp_w": "255.0",
@@ -127,23 +119,34 @@ if uploaded:
                 }
 
                 try:
+                    # 3. Backend'e TEK bir istek atıyoruz (Döngü artık Backend tarafında)
                     response = requests.post(BACKEND_URL, data=payload, timeout=300)
 
                     if response.status_code == 200:
-                        st.success(f"✅ Başarılı! {len(kesin_secilenler)} parça tek PDF'de toplandı.")
+                        final_pdf_content = response.content
+
+                        st.success(f"✅ {len(selected_boxes_data)} bölge başarıyla analiz edildi!")
+
+                        # GCS'ye Final Halini Yedekle (Opsiyonel)
+                        try:
+                            final_uri = upload_pdf_to_gcs(io.BytesIO(final_pdf_content), "sesa-grafik-bucket")
+                            st.caption(f"Bulut Yedeği: {final_uri}")
+                        except:
+                            st.caption("Not: GCS yedeği alınamadı ama dosya hazır.")
+
+                        # 4. İNDİRME BUTONU
                         st.download_button(
-                            label="📥 Analizli PDF'i İndir",
-                            data=response.content,
-                            file_name=f"analiz_{len(kesin_secilenler)}_parca.pdf",
-                            mime="application/pdf"
+                            label="📥 Tüm Analizleri İçeren PDF'i İndir",
+                            data=final_pdf_content,
+                            file_name=f"analizli_{uploaded.name}",
+                            mime="application/pdf",
+                            use_container_width=True
                         )
                     else:
-                        # Hata gelirse içindeki Rect sayısını buradan teyit edebiliriz
-                        st.error(f"Backend Hatası: {response.text}")
+                        st.error(f"Backend hatası: {response.text}")
 
                 except Exception as e:
-                    st.error(f"Bağlantı kesildi: {e}")
+                    st.error(f"İletişim hatası: {e}")
 
-    # Belgeyi kapat (Hatanın dışına aldık)
-    if 'doc' in locals():
-        doc.close()
+    # Belgeyi kapat
+    doc.close()
