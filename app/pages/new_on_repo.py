@@ -53,10 +53,21 @@ def get_all_pdf_boxes(pdf_bytes):
 
 
 def clear_all_checkbox_states():
-    # check_ ile başlayan tüm checkbox state'lerini temizle
     for k in list(st.session_state.keys()):
         if k.startswith("check_"):
             del st.session_state[k]
+
+
+def count_boxes_in_bbox_payload(bbox_pt: str) -> int:
+    """
+    bbox_pt formatı:
+      "x0,y0,x1,y1 | x0,y0,x1,y1 | ..."
+    Bu fonksiyon gerçekten kaç kutu olduğunu sayar.
+    """
+    if not bbox_pt:
+        return 0
+    parts = [p.strip() for p in bbox_pt.split("|") if p.strip()]
+    return len(parts)
 
 
 st.set_page_config(page_title="Pro Repro Seçici", layout="wide")
@@ -67,16 +78,16 @@ uploaded = st.file_uploader("PDF yükle", type=["pdf"])
 if uploaded:
     pdf_bytes = uploaded.getvalue()
 
-    # ✅ PDF değiştiyse: checkbox state’lerini temizle
+    # PDF değiştiyse: eski seçimleri temizle
     if st.session_state.get("last_pdf") != uploaded.name:
         clear_all_checkbox_states()
 
-    # Üste manuel temizleme butonu
+    # manuel temizleme
     if st.button("🧹 Seçimleri temizle"):
         clear_all_checkbox_states()
         st.rerun()
 
-    # 1) PDF'i GCS'ye upload
+    # GCS upload
     if "gcs_uri" not in st.session_state or st.session_state.get("last_pdf") != uploaded.name:
         with st.spinner("Dosya GCS'ye aktarılıyor..."):
             gcs_uri = upload_pdf_to_gcs(io.BytesIO(pdf_bytes), "sesa-grafik-bucket")
@@ -90,7 +101,6 @@ if uploaded:
 
     with st.form("selection_form"):
         st.info("Analiz edilecek parçaları seçin.")
-
         selected_boxes_data = []
 
         for pg_idx, boxes in all_boxes_map.items():
@@ -111,9 +121,8 @@ if uploaded:
 
             st.divider()
 
-        # Backend'e gidecek payload
         backend_payload = None
-        debug_payload = None
+        bbox_count = 0
 
         if selected_boxes_data:
             bbox_payload = " | ".join([
@@ -127,46 +136,37 @@ if uploaded:
                 "bbox_pt": bbox_payload,
             }
 
-            debug_payload = {
-                **backend_payload,
-                "bbox_sayisi": len(selected_boxes_data),
-            }
+            # ✅ GERÇEK SAYIM: string split ile kesin sayı
+            bbox_count = count_boxes_in_bbox_payload(backend_payload["bbox_pt"])
 
-        see_payload_btn = st.form_submit_button("👁️ Backend'e gonderilecek verileri gör")
+        # iki ayrı tuş
+        see_payload_btn = st.form_submit_button("👁️ Backend'e gidecek verileri gör")
         submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
-    # Debug
+    # ✅ Backend down olsa bile: burada sayıyı görürsün
+    if backend_payload:
+        st.success(f"✅ Şu an backend'e gidecek kutu sayısı: {bbox_count}")
+
     if see_payload_btn:
         if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            st.info("Backend'e gönderilecek payload:")
-            st.json(debug_payload)
+            st.info("Backend'e gidecek GERÇEK payload:")
+            st.json({**backend_payload, "bbox_sayisi": bbox_count})
 
-    # Backend call
     if submit_button:
         if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            with st.spinner("Backend çalışıyor, lütfen bekleyin..."):
-                try:
-                    response = requests.post(BACKEND_URL, data=backend_payload, timeout=300)
-
-                    if response.status_code == 200:
-                        final_pdf_content = response.content
-                        st.success(f"✅ {len(selected_boxes_data)} bölge başarıyla analiz edildi!")
-
-                        st.download_button(
-                            label="📥 Tüm Analizleri İçeren PDF'i İndir",
-                            data=final_pdf_content,
-                            file_name=f"analizli_{uploaded.name}",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                    else:
-                        st.error(f"Backend hatası: {response.text}")
-
-                except Exception as e:
-                    st.error(f"İletişim hatası: {e}")
+            # Backend down olabilir; yine de kaç kutu yolladığını zaten görüyorsun.
+            st.info(f"Gönderiliyor... (Kutu sayısı: {bbox_count})")
+            try:
+                response = requests.post(BACKEND_URL, data=backend_payload, timeout=300)
+                if response.status_code == 200:
+                    st.success("✅ Backend başarılı döndü.")
+                else:
+                    st.error(f"Backend hatası: {response.text}")
+            except Exception as e:
+                st.error(f"Backend erişilemiyor: {e}")
 
     doc.close()
