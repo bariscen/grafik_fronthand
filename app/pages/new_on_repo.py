@@ -82,7 +82,6 @@ if uploaded:
     with st.form("selection_form"):
         st.info("Analiz edilecek parçaları seçin.")
 
-        # Seçilenlerin koordinatlarını tutacak liste
         selected_boxes_data = []
 
         for pg_idx, boxes in all_boxes_map.items():
@@ -104,20 +103,26 @@ if uploaded:
             st.divider()
 
         # Backend'e gidecek payload'ı form içindeki seçimlerden üretelim
-        payload = None
+        backend_payload = None
+        debug_payload = None
+
         if selected_boxes_data:
             bbox_payload = " | ".join([
                 f"{item['box'].x0},{item['box'].y0},{item['box'].x1},{item['box'].y1}"
                 for item in selected_boxes_data
             ])
 
-            payload = {
+            # ✅ SADECE BACKEND'E GİDECEK VERİLER
+            backend_payload = {
                 "gcs_uri": st.session_state["gcs_uri"],
                 "page_index": str(selected_boxes_data[0]["pg"]),
                 "bbox_pt": bbox_payload,
-                "quant": "3",
-                "exp_w": "255.0",
-                "exp_h": "325.0",
+            }
+
+            # ✅ SADECE EKRANDA GÖSTERMEK İÇİN (backend'e gitmez)
+            debug_payload = {
+                **backend_payload,
+                "bbox_sayisi": len(selected_boxes_data),
             }
 
         # ✅ İKİ AYRI TUŞ:
@@ -128,25 +133,23 @@ if uploaded:
     # 3A. BACKEND'E GİDECEK VERİLERİ GÖSTER (SADECE EKRANA BASAR)
     # ==========================================
     if see_payload_btn:
-        if not payload:
+        if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            st.info("Aşağıdaki veriler backend'e gönderilecek:")
-            st.json({
-                **payload,
-                "bbox_sayisi": len(selected_boxes_data),
-            })
+            st.info("Backend'e GÖNDERİLECEK GERÇEK PAYLOAD (sadece bunlar gider):")
+            st.json(debug_payload)  # bbox_sayisi dahil (debug için)
 
     # ==========================================
     # 3B. BACKEND HABERLEŞMESİ (Toplu Gönderim)
     # ==========================================
     if submit_button:
-        if not payload:
+        if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
             with st.spinner("Backend tüm parçaları tek bir PDF'de birleştiriyor, lütfen bekleyin..."):
                 try:
-                    response = requests.post(BACKEND_URL, data=payload, timeout=300)
+                    # ✅ SADECE backend_payload GİDER
+                    response = requests.post(BACKEND_URL, data=backend_payload, timeout=300)
 
                     if response.status_code == 200:
                         final_pdf_content = response.content
@@ -173,5 +176,4 @@ if uploaded:
                 except Exception as e:
                     st.error(f"İletişim hatası: {e}")
 
-    # Belgeyi kapat
     doc.close()
