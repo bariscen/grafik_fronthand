@@ -3,15 +3,11 @@ import fitz
 import numpy as np
 import cv2
 import io
-import requests  # <--- YÜKLENMESİ GEREKEN KÜTÜPHANE
+import requests
 from gcs import upload_pdf_to_gcs
 
-# Backend URL'iniz (Cloud Run adresi)
 BACKEND_URL = "https://sesa-grafik-api-1003931228830.europe-southwest1.run.app/on_repro"
 
-# ==========================================
-# 1. ANALİZİ HAFIZAYA AL (Donmayı Önleyen Kısım)
-# ==========================================
 @st.cache_resource(show_spinner="Sayfalar taranıyor, lütfen bekleyin...")
 def get_all_pdf_boxes(pdf_bytes):
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -56,9 +52,13 @@ def get_all_pdf_boxes(pdf_bytes):
     return all_boxes
 
 
-# ==========================================
-# 2. UI & SEÇİM ALANI
-# ==========================================
+def clear_all_checkbox_states():
+    # check_ ile başlayan tüm checkbox state'lerini temizle
+    for k in list(st.session_state.keys()):
+        if k.startswith("check_"):
+            del st.session_state[k]
+
+
 st.set_page_config(page_title="Pro Repro Seçici", layout="wide")
 st.title("🛡️ Ambalaj Seçici & Backend Analizi")
 
@@ -67,7 +67,16 @@ uploaded = st.file_uploader("PDF yükle", type=["pdf"])
 if uploaded:
     pdf_bytes = uploaded.getvalue()
 
-    # 1. Adım: Orijinal PDF'i GCS'ye yükle (Backend'in okuyabilmesi için)
+    # ✅ PDF değiştiyse: checkbox state’lerini temizle
+    if st.session_state.get("last_pdf") != uploaded.name:
+        clear_all_checkbox_states()
+
+    # Üste manuel temizleme butonu
+    if st.button("🧹 Seçimleri temizle"):
+        clear_all_checkbox_states()
+        st.rerun()
+
+    # 1) PDF'i GCS'ye upload
     if "gcs_uri" not in st.session_state or st.session_state.get("last_pdf") != uploaded.name:
         with st.spinner("Dosya GCS'ye aktarılıyor..."):
             gcs_uri = upload_pdf_to_gcs(io.BytesIO(pdf_bytes), "sesa-grafik-bucket")
@@ -102,7 +111,7 @@ if uploaded:
 
             st.divider()
 
-        # Backend'e gidecek payload'ı form içindeki seçimlerden üretelim
+        # Backend'e gidecek payload
         backend_payload = None
         debug_payload = None
 
@@ -112,56 +121,40 @@ if uploaded:
                 for item in selected_boxes_data
             ])
 
-            # ✅ SADECE BACKEND'E GİDECEK VERİLER
             backend_payload = {
                 "gcs_uri": st.session_state["gcs_uri"],
                 "page_index": str(selected_boxes_data[0]["pg"]),
                 "bbox_pt": bbox_payload,
             }
 
-            # ✅ SADECE EKRANDA GÖSTERMEK İÇİN (backend'e gitmez)
             debug_payload = {
                 **backend_payload,
                 "bbox_sayisi": len(selected_boxes_data),
             }
 
-        # ✅ İKİ AYRI TUŞ:
         see_payload_btn = st.form_submit_button("👁️ Backend'e gonderilecek verileri gör")
         submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
-    # ==========================================
-    # 3A. BACKEND'E GİDECEK VERİLERİ GÖSTER (SADECE EKRANA BASAR)
-    # ==========================================
+    # Debug
     if see_payload_btn:
         if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            st.info("Backend'e GÖNDERİLECEK GERÇEK PAYLOAD (sadece bunlar gider):")
-            st.json(debug_payload)  # bbox_sayisi dahil (debug için)
+            st.info("Backend'e gönderilecek payload:")
+            st.json(debug_payload)
 
-    # ==========================================
-    # 3B. BACKEND HABERLEŞMESİ (Toplu Gönderim)
-    # ==========================================
+    # Backend call
     if submit_button:
         if not backend_payload:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            with st.spinner("Backend tüm parçaları tek bir PDF'de birleştiriyor, lütfen bekleyin..."):
+            with st.spinner("Backend çalışıyor, lütfen bekleyin..."):
                 try:
-                    # ✅ SADECE backend_payload GİDER
                     response = requests.post(BACKEND_URL, data=backend_payload, timeout=300)
 
                     if response.status_code == 200:
                         final_pdf_content = response.content
-
                         st.success(f"✅ {len(selected_boxes_data)} bölge başarıyla analiz edildi!")
-
-                        # GCS'ye Final Halini Yedekle (Opsiyonel)
-                        try:
-                            final_uri = upload_pdf_to_gcs(io.BytesIO(final_pdf_content), "sesa-grafik-bucket")
-                            st.caption(f"Bulut Yedeği: {final_uri}")
-                        except Exception:
-                            st.caption("Not: GCS yedeği alınamadı ama dosya hazır.")
 
                         st.download_button(
                             label="📥 Tüm Analizleri İçeren PDF'i İndir",
