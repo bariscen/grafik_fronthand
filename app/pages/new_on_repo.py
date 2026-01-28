@@ -142,6 +142,8 @@ if uploaded:
                 "gcs_uri": st.session_state["gcs_uri"],
                 "page_index": str(selected_boxes_data[0]["pg"]),  # backend böyle istiyorsa kalsın
                 "bbox_pt": bbox_payload,
+                "quant":3,
+
             }
 
         see_payload_btn = st.form_submit_button("👁️ Backend'e gidecek verileri gör")
