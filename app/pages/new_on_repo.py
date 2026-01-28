@@ -91,58 +91,62 @@ if uploaded:
 
         submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
-    # ==========================================
-    # 3. BACKEND HABERLEŞMESİ (Burada Koordinatlar Gidiyor)
+   # ==========================================
+    # 3. BACKEND HABERLEŞMESİ (Toplu Gönderim Yapılandırıldı)
     # ==========================================
     if submit_button:
         if not selected_boxes_data:
             st.warning("Lütfen en az bir parça seçin.")
         else:
-            with st.spinner("Backend analiz yapıyor, lütfen bekleyin..."):
-                # Backend'den dönecek PDF'i tutmak için başlangıçta boş bir bytes
-                final_pdf_content = None
+            with st.spinner("Backend tüm parçaları tek bir PDF'de birleştiriyor, lütfen bekleyin..."):
 
-                for item in selected_boxes_data:
-                    p_idx = item["pg"]
-                    rect = item["box"]
+                # 1. Tüm seçilen kutuların koordinatlarını "|" ile ayırarak birleştiriyoruz
+                # Bu sayede Backend döngüye girip hepsini tek PDF üzerine çizebilir.
+                bbox_payload = " | ".join([
+                    f"{item['box'].x0},{item['box'].y0},{item['box'].x1},{item['box'].y1}"
+                    for item in selected_boxes_data
+                ])
 
-                    # Koordinatları Backend'in beklediği string formatına getiriyoruz
-                    bbox_str = f"{rect.x0},{rect.y0},{rect.x1},{rect.y1}"
+                # 2. Backend'e gönderilecek TEK paket
+                # Not: page_index olarak ilk seçilen kutunun sayfasını baz alıyoruz.
+                payload = {
+                    "gcs_uri": st.session_state["gcs_uri"],
+                    "page_index": str(selected_boxes_data[0]["pg"]),
+                    "bbox_pt": bbox_payload,
+                    "quant": "3",
+                    "exp_w": "255.0",
+                    "exp_h": "325.0"
+                }
 
-                    # Backend'e gönderilecek veri (Senin FastAPI endpoint parametrelerin)
-                    payload = {
-                        "mode": "build_pdf",
-                        "gcs_uri": st.session_state["gcs_uri"],
-                        "page_index": str(p_idx),
-                        "bbox_pt": bbox_str,
-                        "quant": "3",
-                        "target_stroke": "1.0,0.0,0.0", # Kırmızı kutu
-                        "target_width": "2.0"
-                    }
+                try:
+                    # 3. Backend'e TEK bir istek atıyoruz (Döngü artık Backend tarafında)
+                    response = requests.post(BACKEND_URL, data=payload, timeout=300)
 
-                    try:
-                        response = requests.post(BACKEND_URL, data=payload, timeout=300)
-                        if response.status_code == 200:
-                            # Backend'den gelen StreamingResponse (PDF bytes)
-                            final_pdf_content = response.content
-                        else:
-                            st.error(f"Backend hatası (P{p_idx+1}): {response.text}")
-                    except Exception as e:
-                        st.error(f"İletişim hatası: {e}")
+                    if response.status_code == 200:
+                        final_pdf_content = response.content
 
-                if final_pdf_content:
-                    st.success("Tüm ambalaj parçaları analiz edildi ve işaretlendi!")
+                        st.success(f"✅ {len(selected_boxes_data)} bölge başarıyla analiz edildi!")
 
-                    # GCS'ye Son Halini Yükle
-                    final_uri = upload_pdf_to_gcs(io.BytesIO(final_pdf_content), "sesa-grafik-bucket")
-                    st.caption(f"Final PDF GCS'ye kaydedildi: {final_uri}")
+                        # GCS'ye Final Halini Yedekle (Opsiyonel)
+                        try:
+                            final_uri = upload_pdf_to_gcs(io.BytesIO(final_pdf_content), "sesa-grafik-bucket")
+                            st.caption(f"Bulut Yedeği: {final_uri}")
+                        except:
+                            st.caption("Not: GCS yedeği alınamadı ama dosya hazır.")
 
-                    st.download_button(
-                        "📥 Analizli PDF'i İndir",
-                        data=final_pdf_content,
-                        file_name="repro_analiz_sonuc.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
+                        # 4. İNDİRME BUTONU
+                        st.download_button(
+                            label="📥 Tüm Analizleri İçeren PDF'i İndir",
+                            data=final_pdf_content,
+                            file_name=f"analizli_{uploaded.name}",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.error(f"Backend hatası: {response.text}")
 
+                except Exception as e:
+                    st.error(f"İletişim hatası: {e}")
+
+    # Belgeyi kapat
     doc.close()
