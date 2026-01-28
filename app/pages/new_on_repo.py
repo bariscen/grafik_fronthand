@@ -91,27 +91,30 @@ if uploaded:
 
         submit_button = st.form_submit_button("🚀 Seçimleri Backend'de Analiz Et", use_container_width=True)
 
-   # ==========================================
-    # 3. BACKEND HABERLEŞMESİ (Toplu Gönderim Yapılandırıldı)
+    # ==========================================
+    # 3. BACKEND HABERLEŞMESİ (DÜZELTİLMİŞ & TEMİZ)
     # ==========================================
     if submit_button:
-        if not selected_boxes_data:
-            st.warning("Lütfen en az bir parça seçin.")
+        # 1. Sadece o an işaretli olanları topla (Eski verileri temizler)
+        current_selection = []
+        target_page = 0
+        for pg_idx, boxes in all_boxes_map.items():
+            for i, box in enumerate(boxes):
+                if st.session_state.get(f"check_{pg_idx}_{i}"):
+                    current_selection.append(box)
+                    target_page = pg_idx # Son seçilenin sayfasını alıyoruz
+
+        if not current_selection:
+            st.warning("Lütfen analiz edilecek parçaları seçin.")
         else:
-            with st.spinner("Backend tüm parçaları tek bir PDF'de birleştiriyor, lütfen bekleyin..."):
+            with st.spinner(f"Backend {len(current_selection)} parçayı tek PDF'de birleştiriyor..."):
 
-                # 1. Tüm seçilen kutuların koordinatlarını "|" ile ayırarak birleştiriyoruz
-                # Bu sayede Backend döngüye girip hepsini tek PDF üzerine çizebilir.
-                bbox_payload = " | ".join([
-                    f"{item['box'].x0},{item['box'].y0},{item['box'].x1},{item['box'].y1}"
-                    for item in selected_boxes_data
-                ])
+                # 2. Koordinatları "x,y,x,y | x,y,x,y" formatında paketle
+                bbox_payload = " | ".join([f"{b.x0},{b.y0},{b.x1},{b.y1}" for b in current_selection])
 
-                # 2. Backend'e gönderilecek TEK paket
-                # Not: page_index olarak ilk seçilen kutunun sayfasını baz alıyoruz.
                 payload = {
                     "gcs_uri": st.session_state["gcs_uri"],
-                    "page_index": str(selected_boxes_data[0]["pg"]),
+                    "page_index": str(target_page),
                     "bbox_pt": bbox_payload,
                     "quant": "3",
                     "exp_w": "255.0",
@@ -119,22 +122,21 @@ if uploaded:
                 }
 
                 try:
-                    # 3. Backend'e TEK bir istek atıyoruz (Döngü artık Backend tarafında)
+                    # 3. Backend'e TEK BİR istek gönder
                     response = requests.post(BACKEND_URL, data=payload, timeout=300)
 
                     if response.status_code == 200:
                         final_pdf_content = response.content
+                        st.success(f"✅ {len(current_selection)} bölge başarıyla analiz edildi!")
 
-                        st.success(f"✅ {len(selected_boxes_data)} bölge başarıyla analiz edildi!")
-
-                        # GCS'ye Final Halini Yedekle (Opsiyonel)
+                        # 4. GCS Yedeği (Opsiyonel)
                         try:
                             final_uri = upload_pdf_to_gcs(io.BytesIO(final_pdf_content), "sesa-grafik-bucket")
                             st.caption(f"Bulut Yedeği: {final_uri}")
                         except:
-                            st.caption("Not: GCS yedeği alınamadı ama dosya hazır.")
+                            pass
 
-                        # 4. İNDİRME BUTONU
+                        # 5. İNDİRME BUTONU
                         st.download_button(
                             label="📥 Tüm Analizleri İçeren PDF'i İndir",
                             data=final_pdf_content,
@@ -146,7 +148,7 @@ if uploaded:
                         st.error(f"Backend hatası: {response.text}")
 
                 except Exception as e:
-                    st.error(f"İletişim hatası: {e}")
+                    st.error(f"Bağlantı hatası: {e}")
 
     # Belgeyi kapat
     doc.close()
