@@ -133,17 +133,20 @@ if uploaded:
         # ✅ Backend'e gidecek payload'ı üret (BOŞLUKSUZ '|' delimiter)
         backend_payload = None
         if selected_boxes_data:
+            # 1. Koordinatları eski formatta hazırla (x0,y0,x1,y1)
             bbox_payload = "|".join([
                 f"{item['box'].x0},{item['box'].y0},{item['box'].x1},{item['box'].y1}"
                 for item in selected_boxes_data
             ])
 
+            # 2. Her kutunun sayfa indexini ayrı bir virgüllü string yap (0,0,1,2 gibi)
+            pages_payload = ",".join([str(item['pg']) for item in selected_boxes_data])
+
             backend_payload = {
                 "gcs_uri": st.session_state["gcs_uri"],
-                "page_index": str(selected_boxes_data[0]["pg"]),  # backend böyle istiyorsa kalsın
                 "bbox_pt": bbox_payload,
-                "quant":3,
-
+                "page_index": pages_payload,  # Backend'e hangi kutunun hangi sayfada olduğunu söyler
+                "quant": 3,
             }
 
         see_payload_btn = st.form_submit_button("👁️ Backend'e gidecek verileri gör")
